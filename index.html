@@ -405,7 +405,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 25, 2026, 11:58 AM ET · 9261ab7';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 25, 2026, 1:06 PM ET · d40f620';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -1983,7 +1983,7 @@ const SPOT = GEO.caps.map(({ c, r }) => [-180 + (c + .5) * deg, top - (r + .5) *
 const STARS = Array.from({ length: 160 }, (_, i) => [i * 7919 % 1000 / 1000, i * 104729 % 1000 / 1000, i % 9 ? 1 : 2]);
 const ICON = {
   castle: ['10101', '11111', '11111', '11011'],
-  crown: ['1001001', '1101011', '1111111', '0111110', '0000000', '0111110'],
+  crown: ['10101', '10101', '11111', '11111'],   // same footprint as the castle, so a crown never hides a small land
   swords: ['10001', '01010', '00100', '01010', '10001'],
   plague: ['01110', '10101', '11111', '01010'],
 };
@@ -2102,7 +2102,7 @@ function createMap(canvas, onTap) {
     W.regions.forEach((r, i) => {
       const [x, y, depth] = project(SPOT[i]), mine = r.ruler === W.player;
       if (depth < .12) return;
-      if (mine) icon('crown', x, y, px + 1, GOLD);
+      if (mine) icon('crown', x, y, px, GOLD);
       else icon('castle', x, y, px, '#f4efe0');
       if (blink && W.wars.some(w => w.r === i)) icon('swords', x + px * 6, y, px, '#ff6b5a');
       if (r.plague) icon('plague', x - px * 6, y, px, '#c9a3ff');
