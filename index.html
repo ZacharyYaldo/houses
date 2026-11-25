@@ -249,6 +249,7 @@ tr.me td { background:#f1c54b12; }
 @media(prefers-reduced-motion:reduce) { button:active:not(:disabled) { transform:none; } }
 
 .build { margin:14px 0 0; text-align:center; font:500 11px/1.4 var(--body); color:var(--dim); letter-spacing:.04em; }
+.bulk { width:100%; margin-bottom:10px; padding:10px; font-size:13px; font-weight:700; background:#263d59; border-color:var(--gold); }
 
 /* Portrait game shell and the three reference screens. */
 :root { --deep:#0a1627; --ink:#fff3da; --gold:#ffca54; --top:56px; --nav:68px; }
@@ -404,7 +405,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 25, 2026, 11:36 AM ET · 120ca81';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 25, 2026, 11:58 AM ET · 9261ab7';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -469,7 +470,7 @@ const CFG = {
   offerGap: { marry: 20, pact: 8 },   // fewest years between offers of each kind reaching the player
   adult: 16,             // age at which a child can marry or lead a branch
   speeds: [1600, 600, 160],   // milliseconds per year
-  breath: 3000,          // pause after a card or report is answered, before time moves again
+  breath: 200,           // pause after a card or report is answered, before time moves again
 };
 
 // One-line explanations shown when the player hovers over, or presses, a labelled field. Keyed by the label on screen.
@@ -1219,7 +1220,7 @@ __m['js/sim/conflict.js'] = (() => {
 const { CFG } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, range, clamp, people, gold } = __m['js/sim/util.js'];
-const { house, is, sway, note, deed, moveShare, setRuler, allyAid } = __m['js/sim/state.js'];
+const { house, ruled, holds, locals, is, sway, note, deed, bury, moveShare, dropShare, setRuler, allyAid } = __m['js/sim/state.js'];
 const { succeed } = __m['js/sim/family.js'];
 
 
@@ -1247,6 +1248,29 @@ function coup(W, h, r) {
     moveShare(r, h.id, lord.id, .2);
     note(W, `A plot by House ${h.name} against House ${lord.name} of ${R} is uncovered.`, { r: r.i, h: h.id, x: lord.id, w: 1 });
   }
+}
+
+// A ruler turns on a house with a following in its lands. The chance it works, then the attempt itself.
+const routOdds = (h, t) => clamp(.2 + .5 * (h.power / (t.power || 1) - .6) + (is(h, 'Warlike') ? .1 : 0), .1, .8);
+function purge(W, h, t) {
+  const lands = ruled(W, h).filter(r => r.shares[t.id]), where = lands.map(r => named(r.i)).join(', ');
+  sway(t, h, -90);
+  if (!chance(W, routOdds(h, t))) {
+    const r = lands.find(x => !W.wars.some(w => w.r === x.i));
+    h.prestige = Math.max(0, h.prestige - 6);
+    for (const x of lands) x.shares[t.id].favor += 10;
+    note(W, `House ${h.name} fails to drive House ${t.name} out of ${where}.`, { h: h.id, x: t.id, r: lands[0].i, w: 1 });
+    return r && startWar(W, t, r, 'civil');
+  }
+  for (const r of lands) {
+    for (const o of locals(W, r)) if (o !== h && o !== t) sway(o, h, -15);
+    moveShare(r, t.id, h.id, .6);                          // most of its followers come over; the rest scatter
+    dropShare(W, r, t.id);
+    r.shares[h.id].favor -= 10; r.pop *= .99; r.waste = Math.min(.6, r.waste + .03);
+  }
+  deed(W, h, 'purges');
+  note(W, `House ${h.name} drives House ${t.name} out of ${where}.`, { h: h.id, x: t.id, r: lands[0].i, w: 2 });
+  if (!holds(W, t).length) { note(W, `House ${t.name} has no followers left and is no more.`, { h: t.id, x: h.id, r: lands[0].i, w: 1 }); bury(W, t); }
 }
 
 function stepWar(W, w) {
@@ -1277,19 +1301,20 @@ function stepWar(W, w) {
   }
 }
 
-return { startWar, coup, stepWar };
+return { startWar, coup, routOdds, purge, stepWar };
 })();
 __m['js/sim/actions.js'] = (() => {
 // Everything a house can do. The player's buttons and the AI both go through this one table.
 // kind: what a target is (house | region | kid | option | self). why() gives the reason a target is barred, or ''.
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
+// bulk marks an action the player may run on every target at once.
 const { CFG, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { chance, gold, people, pct } = __m['js/sim/util.js'];
 const { house, alive, holds, ruled, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit } = __m['js/sim/state.js'];
 const { grown, unwed, wed } = __m['js/sim/family.js'];
-const { coup, startWar } = __m['js/sim/conflict.js'];
+const { coup, purge, routOdds, startWar } = __m['js/sim/conflict.js'];
 
 const land = r => named(r.i);
 const rivals = (W, h) => alive(W).filter(o => o !== h && holds(W, h).some(r => r.shares[o.id]));
@@ -1303,7 +1328,7 @@ const routePay = (h, t) => CFG.trade * Math.sqrt(h.base * t.base) * (is(h, 'Merc
 
 const work = k => ({
   group: 'goys', kind: 'region', label: `Build ${WORKS[k][0].toLowerCase()}`, hint: `Gives ${WORKS[k][1]}. The house that builds earns loyalty.`,
-  targets: holds, cost: (W, h, r) => (r.works[k] + 1) * Math.sqrt(base(r)),
+  targets: holds, cost: (W, h, r) => (r.works[k] + 1) * Math.sqrt(base(r)), bulk: true,
   note: (W, h, r) => `${WORKS[k][0]} here: level ${r.works[k]} of ${workCap(r)}`,
   reach: () => 'You have no following here. Plant a branch first.',
   why: (W, h, r) => (r.works[k] < workCap(r) ? '' : workCap(r) < 7 ? 'As high as your knowledge allows. Research lifts the limit' : 'Fully built'),
@@ -1396,6 +1421,14 @@ const ACTIONS = {
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : 'You need a following here first.'),
     why: (W, h, r) => (tied(W, h, house(W, r.ruler)) ? 'You are joined to its ruler by marriage' : W.wars.some(w => w.r === r.i) ? 'There is already war here' : ''),
     run: (W, h, r) => coup(W, h, r),
+  },
+  purge: {
+    group: 'power', kind: 'house', label: 'Drive out a house', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, though your own grow less loyal. Lose and it rises against you in civil war.',
+    targets: (W, h) => alive(W).filter(o => o !== h && ruled(W, h).some(r => r.shares[o.id])), cost: (W, h) => unit(h) * 3,
+    note: (W, h, t) => `${pct(routOdds(h, t))} chance. It holds ${ruled(W, h).filter(r => r.shares[t.id]).map(r => `${pct(r.shares[t.id].s)} of ${land(r)}`).join(', ')}`,
+    reach: (W, h) => (h.thrones ? 'It has no following in a land you rule.' : 'Only a house that rules a land can drive another out.'),
+    why: (W, h, t) => (tied(W, h, t) ? 'You are joined to it by marriage' : atWar(W, h, t) ? 'You are already at war with it' : ''),
+    run: (W, h, t) => purge(W, h, t),
   },
   war: {
     group: 'power', kind: 'region', label: 'March to war', hint: 'A ruling house can take a neighbouring land by force. War costs gold, lives and the land itself.',
@@ -2004,10 +2037,13 @@ function createMap(canvas, onTap) {
       if (a < 0 || b < 0) return COAST;
       return lord[a] === lord[b] ? 0 : OUTLINE;
     };
+    const shade = (c, f) => (0xff000000 | ((c >> 16 & 255) * f) << 16 | ((c >> 8 & 255) * f) << 8 | (c & 255) * f) >>> 0;
+    const seam = (a, b) => a !== b && a >= 0 && b >= 0 && lord[a] === lord[b];   // two lands, one ruler: a dotted line in a darker shade of their colour
     for (let y = 0, k = 0; y < bh; y++) for (let x = 0; x < bw; x++, k++) {
       const right = x + 1 < bw && edge(ids[k], ids[k + 1]);
       const down = y + 1 < bh && edge(ids[k], ids[k + bw]);
       if (right || down) out[k] = right === CLAIM || down === CLAIM ? CLAIM : right || down;
+      else if (out[k] !== CLAIM && ((x + 1 < bw && seam(ids[k], ids[k + 1])) || (y + 1 < bh && seam(ids[k], ids[k + bw])))) out[k] = shade(out[k], (x + 3 * y) % 5 < 3 ? .45 : .75);
       if (right === CLAIM) out[k + 1] = CLAIM;
       if (down === CLAIM) out[k + bw] = CLAIM;
     }
@@ -2021,11 +2057,19 @@ function createMap(canvas, onTap) {
       bits.forEach((row, j) => [...row].forEach((bit, i) => bit === '1' && ctx.fillRect(x0 + i * px + shift, y0 + j * px + shift, px, px)));
     }
   }
-  function label(text, x, y, mine) {
-    const wide = ctx.measureText(text).width + 12;
-    ctx.fillStyle = '#16110c'; ctx.fillRect(Math.round(x - wide / 2) - 2, y - 2, wide + 4, 24);
-    ctx.fillStyle = mine ? GOLD : '#fbf7ea'; ctx.fillRect(Math.round(x - wide / 2), y, wide, 20);
-    ctx.fillStyle = '#16110c'; ctx.fillText(text, x, y + 15);
+  // Land names are plain outlined text, so they hide as little of the map as possible. The most important are placed
+  // first (the selected land, then the player's, then the nearest) and a name that would cover another is left out.
+  function labels(list) {
+    const placed = [];
+    ctx.font = '700 11px system-ui, -apple-system, "Segoe UI", sans-serif'; ctx.textAlign = 'center';
+    ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0b0d18';
+    for (const { text, x, y, mine } of list.sort((a, b) => b.rank - a.rank)) {
+      const wide = ctx.measureText(text).width / 2 + 3, box = [x - wide, y, x + wide, y + 14];
+      if (placed.some(p => box[0] < p[2] && box[2] > p[0] && box[1] < p[3] && box[3] > p[1])) continue;
+      placed.push(box);
+      ctx.strokeText(text, x, y + 11);
+      ctx.fillStyle = mine ? GOLD : '#fbf7ea'; ctx.fillText(text, x, y + 11);
+    }
   }
   // A dashed great-circle line between two places, drawn only where it faces the viewer.
   function route(a, b) {
@@ -2054,7 +2098,7 @@ function createMap(canvas, onTap) {
       for (const o of pactsOf(W, me)) route(SPOT[me.seat], SPOT[o.seat]);
       ctx.setLineDash([]);
     }
-    ctx.font = '700 13px system-ui, -apple-system, "Segoe UI", sans-serif'; ctx.textAlign = 'center';
+    const names = [];
     W.regions.forEach((r, i) => {
       const [x, y, depth] = project(SPOT[i]), mine = r.ruler === W.player;
       if (depth < .12) return;
@@ -2062,8 +2106,9 @@ function createMap(canvas, onTap) {
       else icon('castle', x, y, px, '#f4efe0');
       if (blink && W.wars.some(w => w.r === i)) icon('swords', x + px * 6, y, px, '#ff6b5a');
       if (r.plague) icon('plague', x - px * 6, y, px, '#c9a3ff');
-      if (i === sel || (v.zoom > 1.6 && depth > .45)) label(REGIONS[i].name + (r.republic ? ' (republic)' : ''), x, y + px * 3 + 4, mine);
+      if (i === sel || (v.zoom > 1.6 && depth > .45)) names.push({ text: REGIONS[i].name + (r.republic ? ' (republic)' : ''), x, y: y + px * 3 + 2, mine, rank: (i === sel ? 4 : 0) + (mine ? 2 : 0) + depth });
     });
+    labels(names);
   }
 
   function zoom(dir) { v.zoom = clamp(v.zoom * (dir > 0 ? 1.3 : 1 / 1.3), 1, 5); }
@@ -2277,7 +2322,7 @@ function hud(W, paused, speed) {
 function mine(W) {
   const h = me(W), heir = heirOf(W, h);
   return `<button class="home-alert ${heir ? '' : 'warning'}" data-open="group:family">${icon(heir ? 'family' : 'alert')}<span>${heir ? 'Heir: ' + esc(heir.n) : UI.noHeir} · View family →</span></button>
-    <div class="home-card"><button class="home-house" data-open="house:${h.id}">${crest(h)}<span><b>House ${esc(h.name)}</b><i>${esc(h.head.n)} · ${esc(h.head.t)}</i></span></button>
+    <div class="home-card"><button class="home-house" data-open="house:${h.id}">${crest(h)}<span><b>House ${esc(h.name)}</b><i>${esc(h.head.n)} · ${esc(h.head.t)} · Ability ${h.head.a}/10</i></span></button>
     <div class="home-stats">
       <button data-open="group:goys"><b>${people(followers(W, h))}</b><small>${LABEL.folk}</small></button>
       <button data-open="group:goys"><b>${loyalty(W, h)}%</b><small>Loyal</small></button>
@@ -2313,12 +2358,24 @@ const detail = (W, a, t) => (a.note ? `<small>${esc(a.note(W, me(W), t))}</small
 const feud = W => (W.rival && !house(W, W.rival.id).dead ? `<p class="state"><b>Your rival: ${ref(house(W, W.rival.id))} (${REGIONS[house(W, W.rival.id).seat].name}).</b> ${esc(W.rival.why)}</p>` : '');
 
 
+// One button that runs a bulk action on every target the house can pay for, cheapest first.
+function affordable(W, id) {
+  const h = me(W), open = ACTIONS[id].targets(W, h).filter(t => !ACTIONS[id].why?.(W, h, t)).sort((a, b) => cost(W, h, id, a) - cost(W, h, id, b));
+  let left = h.gold;
+  return { open, paid: open.filter(t => (left -= cost(W, h, id, t)) >= 0) };
+}
+function bulk(W, id) {
+  const h = me(W), { open, paid } = affordable(W, id), total = sum(paid, t => cost(W, h, id, t));
+  if (open.length < 2) return '';
+  return `<button class="bulk" data-go="all:${id}" ${paid.length ? '' : 'disabled'}>${paid.length === open.length ? `Build in all ${open.length} lands` : `Build in ${paid.length} of ${open.length} lands`}<em>${gold(total)} gold</em></button>`;
+}
+
 // Actions still use the shared ACTIONS table. UI grouping does not change targets, costs or eligibility.
 function actionSection(W, id, expanded = false) {
   const h = me(W), a = ACTIONS[id], targets = a.kind === 'self' ? [null] : a.targets(W, h);
   const ready = targets.filter(t => !barred(W, h, id, t)).length;
   const list = rows(targets, t => `<li class="action-row" data-search="${esc(a.kind === 'house' ? t.name + ' ' + REGIONS[t.seat].name : a.kind === 'region' ? REGIONS[t.i].name : '')}"><span>${targetName(W, a, t)}${detail(W, a, t)}</span>${a.now?.(h) === t ? `<b class="on">${icon('check')}${UI.current}</b>` : go(W, id, t)}</li>`);
-  return `<details class="action-section" data-section="${id}" ${expanded ? 'open' : ''}><summary><span>${a.label}</span><small>${ready} ${UI.available}</small>${icon('chevron')}</summary><div class="action-body"><p>${a.hint}</p>${targets.length > 8 ? `<input class="target-filter" type="search" aria-label="${UI.filter}" placeholder="${UI.filter}">` : ''}<ul class="${a.kind === 'option' ? 'option-list' : ''}">${list || `<li class="none">${UI.none}</li>`}</ul></div></details>`;
+  return `<details class="action-section" data-section="${id}" ${expanded ? 'open' : ''}><summary><span>${a.label}</span><small>${ready} ${UI.available}</small>${icon('chevron')}</summary><div class="action-body"><p>${a.hint}</p>${a.bulk ? bulk(W, id) : ''}${targets.length > 8 ? `<input class="target-filter" type="search" aria-label="${UI.filter}" placeholder="${UI.filter}">` : ''}<ul class="${a.kind === 'option' ? 'option-list' : ''}">${list || `<li class="none">${UI.none}</li>`}</ul></div></details>`;
 }
 function taxOptions(W) {
   const id = 'tax';
@@ -2373,7 +2430,7 @@ function group(W, g) {
   const wars = W.wars.filter(w => w.a === h.id || w.b === h.id);
   return intro + feud(W) + boxes(box('Soldiers', soldiers(h)), box('Soldiers from allies', gold(allyAid(W, h) * 1000)), box('Prestige', Math.round(h.prestige)), box('Wars you are in', wars.length))
     + (wars.length ? `<section><h3>${UI.activeWars}</h3><ul>${rows(wars, w => `<li><span>${place(w.r)}<small>${ref(house(W, w.a === h.id ? w.b : w.a), true)}</small></span>${icon('power')}</li>`)}</ul></section>` : state('shield', UI.noWars, ''))
-    + rows(['war', 'coup', 'peace', 'gift', 'slander', 'stir', 'press', 'bomb'], id => actionSection(W, id));
+    + rows(['war', 'coup', 'purge', 'peace', 'gift', 'slander', 'stir', 'press', 'bomb'], id => actionSection(W, id));
 }
 
 // What the player can do to one fixed land or house, for that land's or house's own sheet. Moves that cannot reach
@@ -2535,7 +2592,7 @@ function end(W) {
     <button data-go="watch">Look around this world</button>`;
 }
 
-return { hud, mine, bar, sheet, housePreview, title, ambitions, card, era, end };
+return { hud, mine, bar, affordable, sheet, housePreview, title, ambitions, card, era, end };
 })();
 __m['js/main.js'] = (() => {
 // Wires the simulation to the screen: the game loop, input, and saving.
@@ -2549,7 +2606,7 @@ const { createMap } = __m['js/ui/map.js'];
 const { $, esc } = __m['js/ui/dom.js'];
 const { initTips } = __m['js/ui/tips.js'];
 const { icon } = __m['js/ui/art.js'];
-const { hud, mine, bar, sheet, title, ambitions, card, era, end, housePreview } = __m['js/ui/views.js'];
+const { affordable, hud, mine, bar, sheet, title, ambitions, card, era, end, housePreview } = __m['js/ui/views.js'];
 
 const SAVE = 'houses.save', MUSIC = 'houses.music';
 const NO_SAVE = 'This window cannot keep a save. Open the game file directly in Chrome, Edge or Safari and your game will be there when you come back.';
@@ -2639,7 +2696,8 @@ function render() {
   const W = G.W, playing = G.phase === 'play', m = modal();
   const active = document.activeElement, focusKey = G.returnFocus || (active?.dataset.go ? `[data-go="${active.dataset.go}"]` : active?.dataset.open ? `[data-open="${active.dataset.open}"]` : null);
   G.returnFocus = null;
-  if (m) G.paused = true;
+  if (m) { G.resume ||= !G.paused; G.paused = true; }          // a popup stops time; time picks up again once it is answered
+  else if (G.resume) G.resume = G.paused = false;
   $('modal').innerHTML = m ? `<div class="card" tabindex="-1">${m}</div>` : ''; $('modal').hidden = !m;
   $('top').innerHTML = G.phase === 'title' ? '' : hud(W, G.paused || !!G.open, G.speed);
   $('news').textContent = G.phase === 'pick' ? 'Tap a land to see its houses, then choose one to lead.' : '';
@@ -2691,6 +2749,11 @@ const GO = {
   look(id) { G.look = +id; G.paused = true; },
   unlook() { G.returnFocus = `[data-go="look:${G.look}"]`; G.look = null; },
   fullhouse(id) { navigate(`house:${id}`); },
+  all(id) {                                               // a bulk action on every target the house can pay for
+    const W = G.W, h = house(W, W.player), n = affordable(W, id).paid.filter(t => perform(W, h, id, t)).length;
+    refresh(W);
+    G.said = `${ACTIONS[id].label}: done in ${n} land${n === 1 ? '' : 's'}.`;
+  },
   home() { if (G.W.player >= 0) map.focus(house(G.W, G.W.player).seat); },
   card(i) { answer(G.W, +i); refresh(G.W); G.peek = false; G.due = performance.now() + CFG.breath; },
   peek() { G.peek = !G.peek; },
