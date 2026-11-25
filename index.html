@@ -405,7 +405,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 25, 2026, 1:06 PM ET · d40f620';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 25, 2026, 1:10 PM ET · 5d4deb0';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -2813,6 +2813,7 @@ document.addEventListener('keydown', e => {
   }
 });
 addEventListener('resize', () => map.resize());
+new ResizeObserver(() => map.resize()).observe($('map'));   // the page can settle after the first draw (fonts, the phone's toolbars); keep the globe round
 addEventListener('pagehide', store.save);
 document.addEventListener('visibilitychange', () => document.hidden && store.save());
 
