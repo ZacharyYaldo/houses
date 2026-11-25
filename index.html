@@ -248,6 +248,7 @@ tr.me td { background:#f1c54b12; }
 @media(max-height:650px) { #mine { padding:6px 12px; } .home-house { padding:8px 10px; } .home-stats { padding-bottom:5px; } .map-hint { display:none; } }
 @media(prefers-reduced-motion:reduce) { button:active:not(:disabled) { transform:none; } }
 
+.build { margin:14px 0 0; text-align:center; font:500 11px/1.4 var(--body); color:var(--dim); letter-spacing:.04em; }
 </style>
 </head>
 <body>
@@ -271,6 +272,7 @@ tr.me td { background:#f1c54b12; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
+const BUILD = 'Nov 25, 2026, 11:08 AM ET · d8d7d56';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -419,7 +421,7 @@ Object.assign(TIPS, {
   'Time paused': 'Management panels and decisions stop the clock. Return to the map and press Play to continue.',
 });
 
-return { LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, UI };
+return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, UI };
 })();
 __m['js/data/regions.js'] = (() => {
 // The lands of year 0. pop: millions of people. know: the year of our history its knowledge matches.
@@ -2050,7 +2052,7 @@ return { icon, crest, portrait, illustration };
 })();
 __m['js/ui/views.js'] = (() => {
 // Every screen as a function from world state to an HTML string. Nothing here changes the world.
-const { CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
+const { BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, gold, people, pct } = __m['js/sim/util.js'];
@@ -2269,7 +2271,7 @@ function world(W, tab) {
     + (tab === 'standing' && me(W) ? boxes(box(UI.rank, `#${rankOf(W, me(W))}`, `of ${alive(W).length} houses`), box(UI.globalKnowledge, compare(W).front, `${compare(W).ahead >= 0 ? '+' : ''}${compare(W).ahead} vs calendar`)) + feud(W) : '')
     + (c.gone || tab !== 'standing' ? '' : `<p class="state">${steer} ${AIMS[c.aim].toLowerCase()}.</p>`)
     + WORLD[tab](W)
-    + (tab === 'standing' && me(W) ? `<details class="action-section" data-section="settings"><summary>${UI.settings}${icon('chevron')}</summary><p class="state">Your game saves automatically.</p><button data-go="music">${UI.music}</button><button data-go="title">${UI.title}</button></details>` : '');
+    + (tab === 'standing' && me(W) ? `<details class="action-section" data-section="settings"><summary>${UI.settings}${icon('chevron')}</summary><p class="state">Your game saves automatically.</p><button data-go="music">${UI.music}</button><button data-go="title">${UI.title}</button>${stamp}</details>` : '');
 }
 
 // open is "kind:arg", for example "group:family", "region:7", "house:12" or "world:ours".
@@ -2289,6 +2291,7 @@ function housePreview(W, id) {
 }
 
 /* ---------- cards ---------- */
+const stamp = `<p class="build">Build ${BUILD}</p>`;
 const title = (saved, warning) => `<h1>${LABEL.game}</h1>
   <p>Real Earth, year 0. Every land is fought over by rival bloodlines and the ${LABEL.folk} who follow them.
     Lead one house for two thousand years, with real history running alongside to show how your world compares.</p>
@@ -2296,11 +2299,11 @@ const title = (saved, warning) => `<h1>${LABEL.game}</h1>
   ${rows(Object.entries(RULES), ([k, [name, text]]) => `<label class="rule"><input type="checkbox" id="rule-${k}"><span><b>${name}</b>${text}</span></label>`)}
   <button class="cta" data-go="new">Begin a new world</button>
   ${saved ? `<button data-go="resume">Continue ${esc(saved)}</button>` : ''}
-  ${warning ? `<p>${warning}</p>` : ''}`;
+  ${warning ? `<p>${warning}</p>` : ''}${stamp}`;
 
 const ambitions = () => `<h2>What will your house be remembered for?</h2>
   <p>Your ambition is how the ending judges you. Nothing stops you chasing the others.</p>
-  ${rows(Object.entries(AMBITIONS), ([k, a]) => `<button class="pick" data-go="amb:${k}"><b>${a.name}</b>${a.goal}</button>`)}`;
+  ${rows(Object.entries(AMBITIONS), ([k, a]) => `<button class="pick" data-go="amb:${k}"><b>${a.name}</b>${a.goal}</button>`)}${stamp}`;
 
 // A decision card. When it concerns a house, the house's name in the text opens that house's figures inside the card.
 function card(W, v, peek) {
