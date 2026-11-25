@@ -382,6 +382,7 @@ summary::-webkit-details-marker { display:none; }
 .research-more[open] .research-links { margin:10px 0; }
 @media(min-height:750px) { #sheet .concept-page { gap:clamp(9px,1.35dvh,15px); } .fund-row { min-height:44px; } .family-page .empty-state { padding:6px 0 12px; } }
 @media(max-width:350px) { #top { gap:0; } .concept-heading h2 { font-size:25px; } .person-hero .ruler-art .portrait { width:auto; } .research-stats>div { gap:5px; padding:7px 4px; } .research-stats b { font-size:16px; } .fund-row small { max-width:42%; } }
+#sheet>.action-result { position:absolute; left:12px; right:12px; bottom:12px; z-index:3; margin:0; pointer-events:none; box-shadow:0 6px 18px #000a; }
 </style>
 </head>
 <body>
@@ -405,7 +406,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 25, 2026, 1:10 PM ET · 5d4deb0';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 25, 2026, 1:19 PM ET · 1977494';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -2714,7 +2715,7 @@ function render() {
   for (const id of ['top', 'news', 'stage', 'mine', 'bar', 'sheet']) $(id).inert = !!m || !$('look').hidden;
   if (G.open) {
     const body = $('sheet').querySelector('.body'), saved = G.panels[G.open];
-    if (G.said) body.insertAdjacentHTML('afterbegin', `<p class="action-result" role="status">${icon('check')}${esc(G.said)}</p>`);
+    if (G.said) $('sheet').insertAdjacentHTML('beforeend', `<p class="action-result" role="status">${icon('check')}${esc(G.said)}</p>`);   // floats over the page, so the list underneath does not move
     if (saved) {
       body.querySelectorAll('[data-section]').forEach(el => { if (el.dataset.section in saved.details) el.open = saved.details[el.dataset.section]; });
       body.querySelectorAll('.target-filter').forEach((el, i) => { el.value = saved.filters[i] || ''; filterList(el); });
