@@ -383,6 +383,10 @@ summary::-webkit-details-marker { display:none; }
 @media(min-height:750px) { #sheet .concept-page { gap:clamp(9px,1.35dvh,15px); } .fund-row { min-height:44px; } .family-page .empty-state { padding:6px 0 12px; } }
 @media(max-width:350px) { #top { gap:0; } .concept-heading h2 { font-size:25px; } .person-hero .ruler-art .portrait { width:auto; } .research-stats>div { gap:5px; padding:7px 4px; } .research-stats b { font-size:16px; } .fund-row small { max-width:42%; } }
 #sheet>.action-result { position:absolute; left:12px; right:12px; bottom:12px; z-index:3; margin:0; pointer-events:none; box-shadow:0 6px 18px #000a; }
+/* Choosing a house to lead: the land's page is a half-height sheet so other lands can still be tapped. */
+.picking #sheet { top:46%; bottom:env(safe-area-inset-bottom); border-top:2px solid var(--gold); border-radius:14px 14px 0 0; box-shadow:0 -8px 24px #000a; }
+.picking.panel-open #stage { visibility:visible; }
+.picking.panel-open #news { display:block; }
 </style>
 </head>
 <body>
@@ -406,7 +410,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 25, 2026, 1:19 PM ET · 1977494';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 25, 2026, 1:31 PM ET · 00360af';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -2002,7 +2006,7 @@ function createMap(canvas, onTap) {
   const v = { lon: 35, lat: 25, zoom: 1, w: 0, h: 0, tall: 0, key: '' }, touches = new Map();
   let drag = null, img = null, ids = null;
   // The globe's centre and radius on screen. It sits in the top `tall` pixels when a sheet covers the rest.
-  const globe = () => ({ cx: v.w / 2, cy: (v.tall || v.h) / 2, R: Math.min(v.w, v.h) * .46 * v.zoom });
+  const globe = () => ({ cx: v.w / 2, cy: (v.tall || v.h) / 2, R: Math.min(v.w, v.tall || v.h) * .46 * v.zoom });
 
   // A screen point's [lon, lat], or null in space.
   function unproject(x, y) {
@@ -2722,7 +2726,8 @@ function render() {
       body.scrollTop = saved.scroll;
     }
   }
-  map.resize(); map.frame(0);
+  const half = G.phase === 'pick' && G.open;                // choosing a house: the land's page takes the lower half and the globe stays in view
+  map.resize(); map.frame(half ? $('sheet').offsetTop - $('stage').offsetTop : 0);
   const dialog = !$('look').hidden ? $('look') : m ? $('modal') : null;
   if (dialog) (dialog.querySelector(focusKey || 'button') || dialog.querySelector('button'))?.focus({ preventScroll: true });
   else if (focusKey) document.querySelector(focusKey)?.focus({ preventScroll: true });
@@ -2828,7 +2833,7 @@ requestAnimationFrame(function frame(now) {
     render();
   }
   if (G.phase === 'title') map.turn(.08);                  // the globe spins slowly behind the title
-  if (!G.open) map.draw(W, G.sel, now);
+  if (!G.open || G.phase === 'pick') map.draw(W, G.sel, now);
   requestAnimationFrame(frame);
 });
 if (store.load()) GO.resume(); else map.focus(RID.lev);    // a saved game opens straight back up
