@@ -1277,7 +1277,7 @@ function pickRival(W) {
   if (!rv) return;
   W.rival = { id: rv.id, since: W.year, why: pick(W, GRUDGES)(rv.name, h.name, rv.head.n, named(rv.seat)) };
   sway(rv, h, -70); sway(h, rv, -70);
-  W.cards.push({ type: 'news', title: `A rival: House ${rv.name}`, txt: `${W.rival.why} Expect them to work against you until one house breaks the other or the feud is healed.` });
+  W.cards.push({ type: 'news', title: `A rival: House ${rv.name} of ${named(rv.seat)}`, txt: `${W.rival.why} Expect them to work against you until one house breaks the other or the feud is healed.` });
 }
 function endFeud(W, how) {
   const rv = foe(W);
@@ -1859,6 +1859,7 @@ const loyalty = (W, h) => Math.round(sum(holds(W, h), r => r.shares[h.id].loy * 
 const years = n => `${n} year${n === 1 ? '' : 's'}`;
 const nth = n => n + (n % 100 > 10 && n % 100 < 14 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
 const free = (W, h) => { const n = unwed(W, h).length; return `${n || 'No'} unwed ${n === 1 ? 'child' : 'children'} of age`; };
+const foeLine = W => { const rv = W.rival && house(W, W.rival.id); return rv && !rv.dead ? `. Rival: House ${esc(rv.name)} (${REGIONS[rv.seat].name})` : ''; };
 const headBox = (W, h) => box('Head', esc(h.head.n), `${trait(h.head.t)}, ${skill(h.head.a)}, age ${W.year - h.head.b}`);
 function heirBox(W, h) {
   const k = heirOf(W, h);
@@ -1878,7 +1879,7 @@ function hud(W, paused, speed) {
 
 function mine(W) {
   const h = me(W);
-  return `<button class="who" data-open="house:${h.id}">${dot(h)}<b>House ${esc(h.name)}</b><span>${lead(h)}. ${tipped(TIPS.Children, free(W, h))}</span></button>`
+  return `<button class="who" data-open="house:${h.id}">${dot(h)}<b>House ${esc(h.name)}</b><span>${lead(h)}. ${tipped(TIPS.Children, free(W, h))}${foeLine(W)}</span></button>`
     + boxes(
       box('Gold', gold(h.gold), `+${gold(h.inc)} a year`),
       box(LABEL.folk, people(followers(W, h)), `${loyalty(W, h)}% loyal`),
@@ -1912,7 +1913,7 @@ function targetName(W, a, t) {
 
 const detail = (W, a, t) => (a.note ? `<small>${esc(a.note(W, me(W), t))}</small>` : '');
 
-const feud = W => (W.rival && !house(W, W.rival.id).dead ? `<p class="state"><b>Your rival: ${ref(house(W, W.rival.id))}.</b> ${esc(W.rival.why)}</p>` : '');
+const feud = W => (W.rival && !house(W, W.rival.id).dead ? `<p class="state"><b>Your rival: ${ref(house(W, W.rival.id))} (${REGIONS[house(W, W.rival.id).seat].name}).</b> ${esc(W.rival.why)}</p>` : '');
 
 // The labelled figures shown at the top of each action group.
 const INTRO = {
@@ -2049,7 +2050,7 @@ const ambitions = () => `<h2>What will your house be remembered for?</h2>
 // A decision card. When it concerns a house, the house's name in the text opens that house's figures inside the card.
 function card(W, v, peek) {
   const o = v.who === undefined ? null : house(W, v.who), name = o && `House ${esc(o.name)}`;
-  const text = o ? esc(v.text).replace(name, `<a data-go="peek">${name}</a>`) : esc(v.text);
+  const text = o ? esc(v.text).replace(name, `<a data-go="peek">${name}</a> (${REGIONS[o.seat].name})`) : esc(v.text);   // name the house's home land once
   const stats = o && peek ? boxes(headBox(W, o), box('Gold', gold(o.gold), `+${gold(o.inc)} a year`), box('Soldiers', soldiers(o)), box('Thrones', o.thrones), box('World rank', `#${rankOf(W, o)}`))
     + `<p>Seat: ${REGIONS[o.seat].name}. ${TRAITS[o.head.t].blurb} Their opinion of you is ${opinion(o, me(W))}, from -100 to 100.</p>` : '';
   return `<h2>${esc(v.title)}</h2><p>${text}</p>${stats}
