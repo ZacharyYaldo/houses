@@ -417,6 +417,10 @@ summary::-webkit-details-marker { display:none; }
 @keyframes toast { 0%,80% { opacity:1; } 100% { opacity:0; } }
 button.off { opacity:.5; }
 .action-result.no { border-color:#a8703f; background:#3b2415; color:#f6d3ad; font-size:13.5px; }
+.job-list.legend { padding:11px 12px; margin-bottom:6px; border:1px solid var(--line); border-radius:10px; background:#0f1e31; }
+.job-list.legend i { font-style:normal; color:#d9a58a; } .job-list.legend span { display:block; margin-top:2px; color:#8fd9a6; }
+.legend-note { font-size:12.5px; color:var(--dim); margin:0 2px 10px; line-height:1.5; }
+.child>small.doing { color:#8fd9a6; }
 </style>
 </head>
 <body>
@@ -440,7 +444,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 1:45 PM ET · 8842869';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 1:57 PM ET · 7873a7b';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -561,11 +565,14 @@ const TIPS = {
 
 // Mobile interface copy. Presentation state stays in G; these labels do not change the save schema.
 // Work a grown child of the player's house can be given. One child per job. by: the effect per point of the child's ability.
+// short: one line for the list on the Family page. effect(a): what a child of ability a gives. risk: the catch, if any.
 const JOBS = {
-  governor: { name: 'Governor', by: .6, gives: 'Followers in the lands you rule are more loyal: +0.6 for each point of ability. If the governor is not your heir, far lands are likelier to break away when you die.' },
-  commander: { name: 'Commander', by: .02, gives: 'Your soldiers are 2% stronger for each point of ability, and you gain prestige while at war. In a war year there is a 3% chance the commander is killed.' },
-  scholar: { name: 'Scholar', by: .1, gives: 'Adds to your scholars: each point of ability is worth a tenth of a funding level.' },
-  envoy: { name: 'Envoy', by: .2, gives: 'Every house that knows you thinks better of you each year, faster with ability, up to an opinion of 50.' },
+  governor: { name: 'Governor', by: .6, short: 'Makes followers in the lands you rule more loyal.', effect: a => `Loyalty +${(a * .6).toFixed(1)} in every land you rule`,
+    risk: 'If the governor is not your heir, far lands are likelier to break away when you die.' },
+  commander: { name: 'Commander', by: .02, short: 'Makes your soldiers stronger and wins prestige in war.', effect: a => `Soldiers ${a * 2}% stronger, and prestige each year you are at war`,
+    risk: 'In each year of war there is a 3% chance the commander is killed.' },
+  scholar: { name: 'Scholar', by: .1, short: 'Speeds up your knowledge.', effect: a => `Works like ${(a * .1).toFixed(1)} extra levels of funded scholars` },
+  envoy: { name: 'Envoy', by: .2, short: 'Makes other houses think better of you.', effect: a => `Every house that knows you likes you ${(1 + a * .2).toFixed(1)} points more each year, up to 50` },
 };
 
 // Tutorials: short screens shown in order the first time the player reaches each part of the game.
@@ -1463,7 +1470,7 @@ __m['js/sim/actions.js'] = (() => {
 // kind: what a target is (house | region | kid | option | self). why() gives the reason a target is barred, or ''.
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
-// verb is the word on the button. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
+// verb is the word on the button. said() gives the message shown after a routine action, when a log line would not do. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
 const { CFG, JOBS, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, sum, gold, people, pct } = __m['js/sim/util.js'];
@@ -1516,7 +1523,8 @@ const ACTIONS = {
     run(W, h, k) { h.kids.forEach(x => delete x.heir); k.heir = true; },
   },
   ...Object.fromEntries(Object.keys(JOBS).map(k => [k, {
-    group: 'family', kind: 'kid', label: `Appoint a ${JOBS[k].name.toLowerCase()}`, verb: JOBS[k].name, hint: JOBS[k].gives,
+    group: 'family', kind: 'kid', label: `Appoint a ${JOBS[k].name.toLowerCase()}`, verb: JOBS[k].name, hint: JOBS[k].short,
+    said: (W, h, kid) => (kid.job === k ? `${kid.n} is now your ${JOBS[k].name.toLowerCase()}. ${JOBS[k].effect(kid.a)}.${JOBS[k].risk ? ` ${JOBS[k].risk}` : ''}` : `${kid.n} is no longer your ${JOBS[k].name.toLowerCase()}.`),
     targets: grown, now: h => h.kids.find(x => x.job === k),
     run(W, h, kid) { const was = kid.job === k; for (const x of h.kids) if (x.job === k || x === kid) delete x.job; if (!was) kid.job = k; },   // choosing the holder again relieves them
   }])),
@@ -2799,13 +2807,16 @@ function research(W, h) {
 // Every child in one card: who they are, where they stand in the succession, their job, and what can be done with them.
 function children(W, h) {
   const heir = heirOf(W, h), tap = (id, i, label, on) => `<button data-act="${id}" data-t="${i}"${on ? ' class="on"' : off(barred(W, h, id, h.kids[i]))}>${label}</button>`;
-  return rows(h.kids, (k, i) => {
+  // What each job does, always in view above the children, with who holds it now.
+  const legend = `<ul class="job-list legend">${rows(Object.entries(JOBS), ([j, job]) => { const who = h.kids.find(k => k.job === j); return `<li><b>${job.name}</b> ${job.short}${job.risk ? ` <i>${job.risk}</i>` : ''}${who ? `<span>${esc(who.n)}: ${job.effect(who.a)}</span>` : ''}</li>`; })}</ul><p class="legend-note">One child aged ${CFG.adult} or older per job. Abler children do more. Tap a job again to relieve them. A tutor may add 1 to 3 ability, or nothing; a child rests ${CFG.tutor.rest} years between tutors.</p>`;
+  const cards = rows(h.kids, (k, i) => {
     const age = W.year - k.b, fee = cost(W, h, 'tutor', k), stuck = barred(W, h, 'tutor', k);
     return `<div class="child"><b>${esc(k.n)}${k === heir ? '<em>Heir</em>' : ''}${k.job ? `<em class="job">${JOBS[k.job].name}</em>` : ''}</b>
-      <small>Age ${age} · ${trait(k.t)} · ${skill(k.a)}${k.m === undefined ? '' : ' · married'}</small>
+      ${k.job ? `<small class="doing">${JOBS[k.job].effect(k.a)}</small>` : ''}<small>Age ${age} · ${trait(k.t)} · ${skill(k.a)}${k.m === undefined ? '' : ' · married'}</small>
       <div class="child-acts">${k.heir ? '' : tap('heir', i, k === heir ? 'Confirm as heir' : 'Name heir')}<button data-act="tutor" data-t="${i}"${off(stuck)}>Hire a tutor<em>${gold(fee)} gold</em></button></div>
       <div class="child-acts">${age >= CFG.adult ? rows(Object.keys(JOBS), j => tap(j, i, JOBS[j].name, k.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div></div>`;
-  }) + `<details class="action-section" data-section="jobs"><summary><span>What the jobs do</span>${icon('chevron')}</summary><div class="action-body"><p>One child per job. Tap a job again to relieve them.</p><ul class="job-list">${rows(Object.values(JOBS), j => `<li><b>${j.name}</b> ${j.gives}</li>`)}</ul><p>${ACTIONS.tutor.hint}</p></div></details>`;
+  });
+  return legend + cards;
 }
 
 function familyGroup(W, h) {
@@ -3127,8 +3138,8 @@ function render() {
   for (const id of ['top', 'news', 'stage', 'mine', 'bar', 'sheet']) $(id).inert = !!m || !$('look').hidden;
   if (G.open) {
     const body = $('sheet').querySelector('.body'), saved = G.panels[G.open];
-    if (G.said) $('sheet').insertAdjacentHTML('beforeend', `<p class="action-result ${G.no ? 'no' : ''}" role="status">${icon(G.no ? 'alert' : 'check')}${esc(G.said)}</p>`);   // floats over the page, so the list underneath does not move
-    clearTimeout(G.toast); G.toast = setTimeout(() => { G.said = ''; document.querySelector('#sheet>.action-result')?.remove(); }, CFG.toast);
+    if (G.said) $('sheet').insertAdjacentHTML('beforeend', `<p class="action-result ${G.no ? 'no' : ''}" role="status" style="animation-duration:${CFG.toast + G.said.length * 45}ms">${icon(G.no ? 'alert' : 'check')}${esc(G.said)}</p>`);   // floats over the page, so the list underneath does not move
+    clearTimeout(G.toast); G.toast = setTimeout(() => { G.said = ''; document.querySelector('#sheet>.action-result')?.remove(); }, CFG.toast + G.said.length * 45);   // longer messages stay up longer
     if (saved) {
       body.querySelectorAll('[data-section]').forEach(el => { if (el.dataset.section in saved.details) el.open = saved.details[el.dataset.section]; });
       body.querySelectorAll('.target-filter').forEach((el, i) => { el.value = saved.filters[i] || ''; filterList(el); });
@@ -3189,7 +3200,7 @@ function act(id, raw) {
   if (shown === null) return;                              // it could not be done
   refresh(W);
   tellThrones(W);                                          // a coup can change a throne the moment it is tried
-  if (!shown) G.said = W.log.length > said ? W.log.at(-1).txt : `${a.label}: done.`;
+  if (!shown) G.said = a.said?.(W, h, t) ?? (W.log.length > said ? W.log.at(-1).txt : `${a.label}: done.`);
 }
 
 document.addEventListener('click', e => {
