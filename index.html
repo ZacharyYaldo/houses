@@ -393,6 +393,10 @@ summary::-webkit-details-marker { display:none; }
 #sheet .body>.tabs { position:sticky; top:-4px; z-index:2; box-shadow:0 6px 12px -4px #000c; }   /* Realm and World tabs stay in reach while the page scrolls */
 .changes { list-style:none; margin:0; padding:10px 12px; display:grid; gap:6px; border:1px solid var(--line); border-radius:10px; background:#0d1a2b; font-size:13.5px; color:var(--ink); }
 .changes li::before { content:'›'; color:var(--gold); margin-right:8px; }
+.home-goal { width:100%; min-height:40px; padding:6px 12px; margin-bottom:6px; display:flex; align-items:center; gap:9px; text-align:left; border:1px solid #4d6a4a; border-radius:10px; background:#12281f; color:var(--ink); }
+.home-goal .glyph { width:18px; height:18px; color:var(--gold); flex:none; }
+.home-goal span { display:grid; gap:1px; font-size:12.5px; color:#b9c7d8; min-width:0; }
+.home-goal b { font-size:13.5px; color:var(--ink); }
 </style>
 </head>
 <body>
@@ -416,7 +420,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:36 PM ET · 2fdd24f';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:40 PM ET · f7150c6';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -475,6 +479,7 @@ const CFG = {
   price: 3,              // gold per square root of yearly income: prices rise far slower than wealth
   storyGap: [9, 16],     // years between story events
   storyRest: 45,         // years before the same story may be told again
+  goalGold: 5, goalPrestige: 10,   // reward for a ruler's goal: gold in price units, and prestige
   rivalRest: 15,         // years a rival waits after striking at the player before it strikes again
   growth: .02, drift: .015, revoltAt: 28, revolt: .07, rise: .02,
   sizeDrag: 28,          // loyalty lost per 100% share of a land: big followings are harder to keep happy
@@ -1654,7 +1659,7 @@ const AMBITIONS = {
 };
 
 const BY_TRAIT = { Warlike: 'the Stern', Scholar: 'the Wise', Merchant: 'the Rich', Schemer: 'the Sly', Just: 'the Good', Wastrel: 'the Idle' };
-const epithet = ({ deeds: d, t }) => (d.won >= 2 ? 'the Conqueror' : d.coups ? 'the Usurper' : d.built >= 3 ? 'the Builder' : d.wars ? 'the Bold' : BY_TRAIT[t]);
+const epithet = ({ deeds: d, t, won }) => won ?? (d.won >= 2 ? 'the Conqueror' : d.coups ? 'the Usurper' : d.built >= 3 ? 'the Builder' : d.wars ? 'the Bold' : BY_TRAIT[t]);
 
 return { standings, rankOf, compare, AMBITIONS, epithet };
 })();
@@ -1857,6 +1862,105 @@ function tellStory(W) {
 
 return { pickRival, STORIES, tellStory };
 })();
+__m['js/sim/goals.js'] = (() => {
+// A goal for each head of the player's house. When a new head takes over, three goals that fit the moment are offered.
+// Each goal has ok(W, h), which returns what to remember (or null when it does not fit now), text(W, d) for the offer,
+// test(W, h, d), which returns [done, progress line], and the epithet history gives a head who achieves it.
+const { CFG } = __m['js/config.js'];
+const { named } = __m['js/data/regions.js'];
+const { pick, sum, gold } = __m['js/sim/util.js'];
+const { house, holds, ruled, alive, tied, routeCap, workCap, unit, note } = __m['js/sim/state.js'];
+const { heirOf } = __m['js/sim/family.js'];
+
+const me = W => house(W, W.player);
+const routes = (W, h) => W.pacts.filter(p => p.a === h.id || p.b === h.id).length;
+const allies = (W, h) => alive(W).filter(o => o !== h && tied(W, h, o)).length;
+const works = r => r.works.farms + r.works.schools + r.works.roads;
+const followers = (W, h) => sum(holds(W, h), r => r.pop * r.shares[h.id].s);
+const loyal = (W, h) => Math.round(sum(holds(W, h), r => r.shares[h.id].loy * r.pop * r.shares[h.id].s) / (followers(W, h) || 1));
+const lost = (W, h) => (W.once ?? []).filter(i => W.regions[i].ruler !== h.id);
+
+const GOALS = {
+  throne: {
+    name: 'Take a throne', epithet: 'the Crowned',
+    ok: (W, h) => !h.thrones && {}, text: () => 'Rule a land, by plot or by war.',
+    test: (W, h) => [h.thrones > 0, 'You rule no land yet'],
+  },
+  expand: {
+    name: 'Widen the realm', epithet: 'the Conqueror',
+    ok: (W, h) => h.thrones > 0 && { n: h.thrones + 1 }, text: (W, d) => `Rule ${d.n} lands at once.`,
+    test: (W, h, d) => [h.thrones >= d.n, `You rule ${h.thrones} of ${d.n} lands`],
+  },
+  reclaim: {
+    name: 'Take back what was ours', epithet: 'the Restorer',
+    ok: (W, h) => lost(W, h).length && { r: lost(W, h)[0] }, text: (W, d) => `Rule ${named(d.r)} again.`,
+    test: (W, h, d) => [W.regions[d.r].ruler === h.id, `${named(d.r)} is held by House ${house(W, W.regions[d.r].ruler).name}`],
+  },
+  heir: {
+    name: 'Raise a worthy heir', epithet: 'the Teacher',
+    ok: (W, h) => (heirOf(W, h)?.a ?? 0) < 7 && {}, text: () => 'Have an heir of ability 7 or more.',
+    test(W, h) { const k = heirOf(W, h); return [(k?.a ?? 0) >= 7, k ? `Your heir ${k.n} has ability ${k.a} of 7` : 'You have no heir']; },
+  },
+  trade: {
+    name: 'Become a trading house', epithet: 'the Merchant Prince',
+    ok: (W, h) => routes(W, h) < routeCap(W, h) && { n: Math.min(routeCap(W, h), routes(W, h) + 2) }, text: (W, d) => `Hold ${d.n} trade routes at once.`,
+    test: (W, h, d) => [routes(W, h) >= d.n, `You hold ${routes(W, h)} of ${d.n} trade routes`],
+  },
+  rich: {
+    name: 'Fill the treasury', epithet: 'the Golden',
+    ok: (W, h) => ({ n: Math.ceil(Math.max(h.gold * 2, h.inc * 15, 50)) }), text: (W, d) => `Have ${gold(d.n)} gold in hand.`,
+    test: (W, h, d) => [h.gold >= d.n, `You have ${gold(h.gold)} of ${gold(d.n)} gold`],
+  },
+  loved: {
+    name: 'Win their hearts', epithet: 'the Beloved',
+    ok: (W, h) => loyal(W, h) < 72 && {}, text: () => 'Bring the loyalty of your followers to 78%.',
+    test: (W, h) => [loyal(W, h) >= 78, `Your followers are ${loyal(W, h)}% loyal, of 78%`],
+  },
+  build: {
+    name: 'Build up the seat', epithet: 'the Builder',
+    ok(W, h) { const r = W.regions[h.seat]; return r.ruler === h.id && works(r) + 2 <= workCap(r) * 3 && { n: works(r) + 2 }; }, text: (W, d) => `Raise the farms, schools and roads of your seat to ${d.n} levels in all.`,
+    test(W, h, d) { const n = works(W.regions[h.seat]); return [n >= d.n, `Your seat has ${n} of ${d.n} levels built`]; },
+  },
+  ally: {
+    name: 'Bind a house by marriage', epithet: 'the Matchmaker',
+    ok: (W, h) => ({ n: allies(W, h) + 1 }), text: (W, d) => `Be joined by marriage to ${d.n === 1 ? 'another house' : `${d.n} houses at once`}.`,
+    test: (W, h, d) => [allies(W, h) >= d.n, `You are joined to ${allies(W, h)} of ${d.n} houses`],
+  },
+  feud: {
+    name: 'End the feud', epithet: 'the Avenger',
+    ok: W => W.rival && !house(W, W.rival.id).dead && { id: W.rival.id }, text: (W, d) => `Break House ${house(W, d.id).name} or make peace with it.`,
+    test: (W, h, d) => [house(W, d.id).dead !== undefined || W.rival?.id !== d.id, `House ${house(W, d.id).name} is still your rival`],
+  },
+};
+
+const goalReward = h => Math.ceil(unit(h) * CFG.goalGold);
+const goalLine = W => (W.goal ? GOALS[W.goal.k].test(W, me(W), W.goal.d)[1] : '');
+
+// Each year: remember the lands this house has ruled, offer goals to a new head, and reward a goal that has been met.
+function stepGoals(W) {
+  const h = me(W);
+  W.once = [...new Set([...(W.once ?? []), ...ruled(W, h).map(r => r.i)])];
+  if (W.goalFor !== W.chron.length) { W.goalFor = W.chron.length; W.goal = null; return offer(W); }
+  if (!W.goal || W.cards.some(c => c.type === 'goal')) return;
+  const g = GOALS[W.goal.k];
+  if (!g.test(W, h, W.goal.d)[0]) return;
+  const fee = goalReward(h);
+  h.gold += fee; h.prestige += CFG.goalPrestige; W.chron.at(-1).won = g.epithet;
+  note(W, `${h.head.n} of House ${h.name} achieves a goal: ${g.name.toLowerCase()}.`, { h: h.id, r: h.seat, w: 1 });
+  W.cards.push({ type: 'result', title: `Goal met: ${g.name}`, txt: `${h.head.n} will be remembered as ${h.head.n} ${g.epithet}.`, changes: [`Prestige +${CFG.goalPrestige}`, `Gold +${gold(fee)}`] });
+  W.goal = null;
+  offer(W);
+}
+
+function offer(W) {
+  const h = me(W), fit = Object.keys(GOALS).map(k => ({ k, d: GOALS[k].ok(W, h) })).filter(g => g.d && !GOALS[g.k].test(W, h, g.d)[0]);
+  const picks = [];
+  while (picks.length < 3 && fit.length) picks.push(fit.splice(fit.indexOf(pick(W, fit)), 1)[0]);
+  if (picks.length) W.cards.push({ type: 'goal', picks });
+}
+
+return { GOALS, goalReward, goalLine, stepGoals };
+})();
 __m['js/sim/step.js'] = (() => {
 // The yearly tick, and what happens at the close of each century.
 const { END, ERA, LABEL, UNLOCKS } = __m['js/config.js'];
@@ -1870,6 +1974,7 @@ const { stepFamily } = __m['js/sim/family.js'];
 const { think } = __m['js/sim/ai.js'];
 const { standings } = __m['js/sim/score.js'];
 const { tellStory } = __m['js/sim/stories.js'];
+const { stepGoals } = __m['js/sim/goals.js'];
 
 function stepYear(W) {
   W.year++;
@@ -1915,6 +2020,7 @@ function watch(W) {
   }
   tellThrones(W);
   tellResearch(W, h);
+  stepGoals(W);
   tellStory(W);
   if (W.rival && !house(W, W.rival.id).dead) sway(house(W, W.rival.id), h, -3);   // a rival's hatred does not fade
   const sore = holds(W, h).find(r => r.shares[h.id].loy < 35);
@@ -1951,12 +2057,13 @@ return { stepYear, tellThrones };
 __m['js/sim/cards.js'] = (() => {
 // Decisions that interrupt the player. Each type builds { title, text, who, opts: [{ label, hint, bar, run }] } from saved
 // card data, or returns null once the moment has passed. who names the house the card is about, so its stats can be shown.
-const { GUIDE, LABEL, TAXES } = __m['js/config.js'];
+const { CFG, GUIDE, LABEL, TAXES } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { NATURE } = __m['js/data/history.js'];
 const { gold } = __m['js/sim/util.js'];
 const { house, holds, alive, tied, opinion, sway, note, fullName, unit } = __m['js/sim/state.js'];
 const { heirOf } = __m['js/sim/family.js'];
+const { GOALS, goalReward } = __m['js/sim/goals.js'];
 const { ACTIONS } = __m['js/sim/actions.js'];
 const { startWar } = __m['js/sim/conflict.js'];
 const { STORIES } = __m['js/sim/stories.js'];
@@ -1968,6 +2075,12 @@ const CARDS = {
   story: (W, c) => (STORIES[c.k].ok(W, me(W), W.rival && !house(W, W.rival.id).dead ? house(W, W.rival.id) : null) ? STORIES[c.k].view(W, c) : null),
   news: (W, c) => ({ title: c.title, text: c.txt, opts: [{ label: 'Carry on' }] }),
   result: (W, c) => ({ title: c.title, text: c.txt, changes: c.changes, opts: [{ label: 'Carry on' }] }),
+  // A new head chooses what to be remembered for.
+  goal(W, c) {
+    const h = me(W);
+    return { title: `A goal for ${h.head.n}`, text: `What will ${h.head.n} be remembered for? Choose one. Meet it for ${CFG.goalPrestige} prestige and ${gold(goalReward(h))} gold. It lapses when ${h.head.n} dies.`,
+      opts: c.picks.map(g => ({ label: GOALS[g.k].name, hint: GOALS[g.k].text(W, g.d), run() { W.goal = { k: g.k, d: g.d }; } })) };
+  },
   // One tutorial screen. `step` is shown as n/total and the `corner` option is drawn as an X that skips the rest.
   guide(W, c) {
     const pages = GUIDE[c.k], last = c.i === pages.length - 1;
@@ -2403,6 +2516,7 @@ const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, r
 const { ACTIONS, cost, barred } = __m['js/sim/actions.js'];
 const { heirOf, unwed } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
+const { GOALS, goalLine } = __m['js/sim/goals.js'];
 const { esc, tint } = __m['js/ui/dom.js'];
 const { icon, crest, portrait, illustration } = __m['js/ui/art.js'];
 
@@ -2454,7 +2568,8 @@ function hud(W, paused, speed) {
 
 function mine(W) {
   const h = me(W), heir = heirOf(W, h);
-  return `<button class="home-alert ${heir ? '' : 'warning'}" data-open="group:family">${icon(heir ? 'family' : 'alert')}<span>${heir ? 'Heir: ' + esc(heir.n) : UI.noHeir} · View family →</span></button>
+  const goal = W.goal ? `<button class="home-goal" data-open="house:${h.id}">${icon('star')}<span><b>Goal: ${GOALS[W.goal.k].name}</b>${esc(goalLine(W))}</span></button>` : '';
+  return `${goal}<button class="home-alert ${heir ? '' : 'warning'}" data-open="group:family">${icon(heir ? 'family' : 'alert')}<span>${heir ? 'Heir: ' + esc(heir.n) : UI.noHeir} · View family →</span></button>
     <div class="home-card"><button class="home-house" data-open="house:${h.id}">${crest(h)}<span><b>House ${esc(h.name)}</b><i>${esc(h.head.n)} · ${esc(h.head.t)} · Ability ${h.head.a}/10</i></span></button>
     <div class="home-stats">
       <button data-open="group:goys"><b>${people(followers(W, h))}</b><small>${LABEL.folk}</small></button>
