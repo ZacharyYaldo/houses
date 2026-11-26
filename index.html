@@ -416,7 +416,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:28 PM ET · 2ba321b';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:31 PM ET · 2fc6750';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -474,6 +474,8 @@ const CFG = {
   oceanYear: 1492,       // knowledge needed to cross oceans
   price: 3,              // gold per square root of yearly income: prices rise far slower than wealth
   storyGap: [9, 16],     // years between story events
+  storyRest: 45,         // years before the same story may be told again
+  rivalRest: 15,         // years a rival waits after striking at the player before it strikes again
   growth: .02, drift: .015, revoltAt: 28, revolt: .07, rise: .02,
   sizeDrag: 28,          // loyalty lost per 100% share of a land: big followings are harder to keep happy
   tieYears: 50, maxKids: 5, maxWork: 3, minShare: .015, maxHouses: 5,   // maxWork: build levels before research raises it
@@ -1582,16 +1584,20 @@ const PREFER = {
 // Actions the player must agree to arrive as a card instead of simply happening.
 const ASKS = { marry: 'offer', pact: 'offer', war: 'demand' };
 
-// The player's rival spends half its moves on the player: war, a coup, or turning their followers.
+// The player's rival spends half its moves on the player. It strikes (war or a coup) only when it judges it can win,
+// and not again for CFG.rivalRest years. Otherwise it turns the player's followers, or marries for allies.
 function spite(W, h) {
-  const you = house(W, W.player);
+  const you = house(W, W.player), rested = W.year - (W.rival.struck ?? -99) >= CFG.rivalRest;
   for (const id of ['war', 'coup', 'press', 'stir', 'slander']) {
-    const a = ACTIONS[id], t = a.targets(W, h).find(t => (a.kind === 'house' ? t === you : t.ruler === you.id));
-    if (!t || barred(W, h, id, t)) continue;
+    const a = ACTIONS[id], strike = id === 'war' || id === 'coup';
+    const t = a.targets(W, h).find(t => (a.kind === 'house' ? t === you : t.ruler === you.id));
+    if (!t || barred(W, h, id, t) || (strike && !(rested && PREFER[id](W, h, t) > 0))) continue;
+    if (strike) W.rival.struck = W.year;
     if (id === 'war') W.cards.push({ type: 'demand', act: id, from: h.id, r: t.i }); else perform(W, h, id, t);
     return true;
   }
-  return false;
+  const friend = maxBy(ACTIONS.marry.targets(W, h).filter(t => t !== you && !barred(W, h, 'marry', t)), t => t.power);
+  return friend ? perform(W, h, 'marry', friend) : false;
 }
 
 function think(W, h) {
@@ -1841,9 +1847,11 @@ function tellStory(W) {
   if (!rv && W.year - (W.peaceAt ?? -99) >= 25) pickRival(W);
   if (W.year < (W.storyAt ?? 6) || W.cards.length) return;
   W.storyAt = W.year + Math.round(range(W, ...CFG.storyGap));
-  const open = Object.keys(STORIES).map(k => [k, STORIES[k].ok(W, h, rv)]).filter(([, data]) => data);
+  const told = W.told ??= {};                              // when each story was last told, so none comes round too soon
+  const open = Object.keys(STORIES).filter(k => W.year - (told[k] ?? -99) >= CFG.storyRest).map(k => [k, STORIES[k].ok(W, h, rv)]).filter(([, data]) => data);
   if (!open.length) return;
   const [k, data] = pick(W, open);
+  told[k] = W.year;
   W.cards.push({ type: 'story', k, ...data });
 }
 
