@@ -443,7 +443,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:48 PM ET · faec8ac';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:53 PM ET · bc767ff';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -573,7 +573,7 @@ const JOBS = {
   commander: { name: 'Commander', by: .02, short: 'Makes your soldiers stronger and wins prestige in war.', effect: a => `Soldiers ${a * 2}% stronger, and prestige each year you are at war`,
     risk: 'In each year of war there is a 3% chance the commander is killed.' },
   scholar: { name: 'Scholar', by: .1, short: 'Speeds up your knowledge.', effect: a => `Works like ${(a * .1).toFixed(1)} extra levels of funded scholars` },
-  envoy: { name: 'Envoy', by: .2, short: 'Makes other houses think better of you.', effect: a => `Every house that knows you likes you ${(1 + a * .2).toFixed(1)} points more each year, up to 50` },
+  envoy: { name: 'Envoy', by: .2, short: 'Makes other houses think better of you.', effect: a => `Every house that knows you likes you ${Math.round(1 + a * .2)} points more each year, up to 50` },
 };
 
 // Tutorials: short screens shown in order the first time the player reaches each part of the game.
@@ -2180,7 +2180,7 @@ function keep(W, h) {
   h.prestige = clamp(h.prestige * .99 + h.thrones * .3, 0, 300);
   h.reign += h.thrones > 0; h.realm = Math.max(h.realm, h.thrones);
   for (const k in h.op) h.op[k] -= Math.sign(h.op[k]);       // grudges and favours fade
-  if (job(h, 'envoy')) for (const o of alive(W)) if (o !== h && o.op[h.id] !== undefined && opinion(o, h) < 50) sway(o, h, 1 + job(h, 'envoy'));
+  if (job(h, 'envoy')) for (const o of alive(W)) if (o !== h && o.op[h.id] !== undefined && opinion(o, h) < 50) sway(o, h, Math.round(1 + job(h, 'envoy')));
   if (job(h, 'commander') && fronts(W, h).length) {
     h.prestige += .3;
     if (chance(W, CFG.commanderRisk)) lose(W, h, k => k.job === 'commander', 'falls in battle');
@@ -2724,6 +2724,7 @@ const dot = h => `<span class="dot" style="background:${tint(h)}"></span>`;
 const ref = (h, preview = false) => `<button class="text-link house-link" ${preview ? `data-go="look:${h.id}"` : `data-open="house:${h.id}"`}>${dot(h)}House ${esc(h.name)}</button>`;
 const place = i => `<button class="text-link" data-open="region:${i}">${REGIONS[i].name}</button>`;
 const taxName = v => TAXES.find(t => t[0] === v)[1];
+const liking = (a, b) => Math.round(opinion(a, b));       // opinions are kept exactly and shown as whole numbers
 const soldiers = h => gold(h.levy * 1000);
 const followers = (W, h) => sum(holds(W, h), r => r.pop * (r.shares[h.id]?.s ?? 0));
 const loyalty = (W, h) => Math.round(sum(holds(W, h), r => (r.shares[h.id]?.loy ?? 0) * r.pop * r.shares[h.id].s) / (followers(W, h) || 1));
@@ -2784,7 +2785,7 @@ function go(W, id, t) {
 }
 
 function targetName(W, a, t) {
-  if (a.kind === 'house') return `${ref(t, true)}<small>${REGIONS[t.seat].name}. ${trait(t.head.t)} head. ${tipped(TIPS.opinion, `Thinks of you: ${opinion(t, me(W))}`)}</small>`;
+  if (a.kind === 'house') return `${ref(t, true)}<small>${REGIONS[t.seat].name}. ${trait(t.head.t)} head. ${tipped(TIPS.opinion, `Thinks of you: ${liking(t, me(W))}`)}</small>`;
   if (a.kind === 'region') return place(t.i);
   if (a.kind === 'kid') return `${esc(t.n)}<small>Age ${W.year - t.b}, ${trait(t.t)}, ${skill(t.a)}${t.m === undefined ? '' : ', married'}</small>`;
   return a.kind === 'option' ? a.name(t) : a.label;
@@ -2936,7 +2937,7 @@ function family(W, id) {
   const o = house(W, id), h = me(W), other = h && o !== h && !h.dead;
   if (o.dead) return `<p class="state">House ${esc(o.name)} came to an end in ${o.dead}.</p>`;
   const lands = holds(W, o).map(r => `${place(r.i)} ${pct(r.shares[o.id].s)}${r.ruler === o.id ? ' (rules)' : ''}`).join(', ');
-  const toYou = other ? `${tipped(TIPS.opinion, `Their opinion of you is ${opinion(o, h)}`)}, on a scale of -100 to 100.
+  const toYou = other ? `${tipped(TIPS.opinion, `Their opinion of you is ${liking(o, h)}`)}, on a scale of -100 to 100.
     ${tied(W, h, o) ? 'You are joined by marriage.' : ''} ${pactsOf(W, h).includes(o) ? 'You trade with them.' : ''}` : '';
   return hero(W, o) + (W.rival?.id === o.id ? feud(W) : '') + boxes(heirBox(W, o), box('Gold', gold(o.gold), `+${gold(o.inc)} a year`), box('Soldiers', soldiers(o)), box('Thrones', o.thrones), box('World rank', `#${rankOf(W, o)}`))
     + `<p class="state">${trait(o.head.t)}: ${TRAITS[o.head.t].blurb} Founded in ${o.founded}${o.parent >= 0 ? `, a branch of House ${esc(house(W, o.parent).name)}` : ''}.
@@ -3021,7 +3022,7 @@ function card(W, v, peek) {
   const o = v.who === undefined ? null : house(W, v.who), name = o && `House ${esc(o.name)}`;
   const text = o ? esc(v.text).replace(name, `<button class="text-link" data-go="peek">${name}</button> (${REGIONS[o.seat].name})`) : esc(v.text);   // name the house's home land once
   const stats = o && peek ? boxes(headBox(W, o), box('Gold', gold(o.gold), `+${gold(o.inc)} a year`), box('Soldiers', soldiers(o)), box('Thrones', o.thrones), box('World rank', `#${rankOf(W, o)}`))
-    + `<p>Seat: ${REGIONS[o.seat].name}. ${TRAITS[o.head.t].blurb} Their opinion of you is ${opinion(o, me(W))}, from -100 to 100.</p>` : '';
+    + `<p>Seat: ${REGIONS[o.seat].name}. ${TRAITS[o.head.t].blurb} Their opinion of you is ${liking(o, me(W))}, from -100 to 100.</p>` : '';
   const corner = v.step ? `<div class="card-corner"><span>${v.step.join('/')}</span><button class="icon" data-go="card:${v.corner}" aria-label="${v.opts[v.corner].label}">${icon('close')}</button></div>` : '';
   const changes = v.changes?.length ? `<ul class="changes">${rows(v.changes, c => `<li>${esc(c)}</li>`)}</ul>` : '';
   return `${corner}<h2>${esc(v.title)}</h2><p>${text}</p>${changes}${stats}
