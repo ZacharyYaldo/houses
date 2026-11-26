@@ -425,7 +425,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:46 PM ET · 4199b01';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:49 PM ET · 9247a05';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -1410,7 +1410,7 @@ __m['js/sim/actions.js'] = (() => {
 // kind: what a target is (house | region | kid | option | self). why() gives the reason a target is barred, or ''.
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
-// bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
+// verb is the word on the button. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
 const { CFG, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { chance, sum, gold, people, pct } = __m['js/sim/util.js'];
@@ -1429,7 +1429,7 @@ const APART = () => 'You have no following in any land they are in.';
 const routePay = (h, t) => CFG.trade * Math.sqrt(h.base * t.base) * (is(h, 'Merchant') ? 1.4 : 1);
 
 const work = k => ({
-  group: 'goys', kind: 'region', label: `Build ${WORKS[k][0].toLowerCase()}`, hint: `Gives ${WORKS[k][1]}. The house that builds earns loyalty.`,
+  group: 'goys', kind: 'region', label: `Build ${WORKS[k][0].toLowerCase()}`, verb: 'Build', hint: `Gives ${WORKS[k][1]}. The house that builds earns loyalty.`,
   targets: holds, cost: (W, h, r) => (r.works[k] + 1) * Math.sqrt(base(r)), bulk: true,
   note: (W, h, r) => `${WORKS[k][0]} here: level ${r.works[k]} of ${workCap(r)}`,
   reach: () => 'You have no following here. Plant a branch first.',
@@ -1451,19 +1451,19 @@ function frontLine(W, h, w) {
 
 const ACTIONS = {
   marry: {
-    big: true, group: 'family', kind: 'house', label: 'Arrange a marriage', hint: `Joins two houses for ${CFG.tieYears} years. They fight beside each other, and one inherits if the other's line fails.`,
+    big: true, group: 'family', kind: 'house', label: 'Arrange a marriage', verb: 'Marry', hint: `Joins two houses for ${CFG.tieYears} years. They fight beside each other, and one inherits if the other's line fails.`,
     targets: contacts, cost: (W, h) => unit(h) * 2,
     note: (W, h, t) => `They would send ${gold(t.levy * CFG.allyAid * 1000)} soldiers to your wars, and you would send ${gold(h.levy * CFG.allyAid * 1000)} to theirs`, reach: () => FAR,
     why: (W, h, t) => (tied(W, h, t) ? 'Already joined' : !unwed(W, h).length ? `You have no unwed child aged ${CFG.adult} or over` : !unwed(W, t).length ? `They have no unwed child aged ${CFG.adult} or over` : opinion(t, h) < -20 ? 'They refuse you' : ''),
     run: (W, h, t) => wed(W, h, t),
   },
   heir: {
-    group: 'family', kind: 'kid', label: 'Name your heir', hint: 'Unless you name one, your eldest child inherits.',
+    group: 'family', kind: 'kid', label: 'Name your heir', verb: 'Name heir', hint: 'Unless you name one, your eldest child inherits.',
     targets: (W, h) => h.kids, why: (W, h, k) => (k.heir ? 'Your named heir' : ''),
     run(W, h, k) { h.kids.forEach(x => delete x.heir); k.heir = true; },
   },
   branch: {
-    big: true, group: 'family', kind: 'region', label: 'Plant a branch abroad', hint: `Send a grown child to win a following of ${LABEL.folk} in another land.`,
+    big: true, group: 'family', kind: 'region', label: 'Plant a branch abroad', verb: 'Send', hint: `Send a grown child to win a following of ${LABEL.folk} in another land.`,
     targets: (W, h) => [...reach(W, h)].map(i => W.regions[i]).filter(r => !r.shares[h.id]), cost: (W, h) => unit(h) * 5,
     why: (W, h) => (spare(W, h).length ? '' : 'Needs a grown, unwed child who is not your named heir'),
     note: (W, h, r) => `${spare(W, h)[0] ? `Sends ${spare(W, h)[0].n}, who leaves your family. ` : ''}${people(r.pop)} ${LABEL.folk}, ${Object.keys(r.shares).length} houses, ruled by House ${house(W, r.ruler).name}`,
@@ -1476,19 +1476,19 @@ const ACTIONS = {
     },
   },
   tax: {
-    group: 'goys', kind: 'option', label: 'Set your taxes', hint: `Heavy taxes pay now. They also leave your ${LABEL.folk} poorer and less loyal, and the disloyal drift to kinder houses or revolt.`,
+    group: 'goys', kind: 'option', label: 'Set your taxes', verb: 'Set', hint: `Heavy taxes pay now. They also leave your ${LABEL.folk} poorer and less loyal, and the disloyal drift to kinder houses or revolt.`,
     targets: () => TAXES.map(t => t[0]), name: v => `${TAXES.find(t => t[0] === v)[1]}, ${v * 100}%`, now: h => h.tax,
     run(W, h, v) { h.tax = v; },
   },
   feast: {
-    group: 'goys', kind: 'self', label: 'Hold a great feast', hint: 'Lifts the loyalty of all your followers for a few years. One a year, and a second within five years does half as much.', cost: (W, h) => unit(h),
+    group: 'goys', kind: 'self', label: 'Hold a great feast', verb: 'Hold feast', hint: 'Lifts the loyalty of all your followers for a few years. One a year, and a second within five years does half as much.', cost: (W, h) => unit(h),
     why: (W, h) => (h.feast === W.year ? 'You have already feasted this year' : ''),
     note: (W, h) => `Loyalty +${feastLift(W, h)} in every land you hold, fading over a few years`,
     run(W, h) { for (const r of holds(W, h)) r.shares[h.id].favor += feastLift(W, h); h.feast = W.year; },
   },
   farms: work('farms'), schools: work('schools'), roads: work('roads'),
   pact: {
-    group: 'trade', kind: 'house', label: 'Open a trade route', hint: 'Pays both houses every year and carries knowledge between your lands. It carries plague too.',
+    group: 'trade', kind: 'house', label: 'Open a trade route', verb: 'Open route', hint: 'Pays both houses every year and carries knowledge between your lands. It carries plague too.',
     targets: (W, h) => contacts(W, h).filter(t => !pactsOf(W, h).includes(t)), cost: (W, h) => unit(h),
     note: (W, h, t) => `Would pay you about ${gold(routePay(h, t))} gold a year`,
     reach: (W, h, t) => (pactsOf(W, h).includes(t) ? 'You already trade with them.' : FAR),
@@ -1500,16 +1500,16 @@ const ACTIONS = {
     },
   },
   unpact: {
-    group: 'trade', kind: 'house', label: 'Close a trade route', hint: 'Frees a route for a richer partner.', targets: pactsOf,
+    group: 'trade', kind: 'house', label: 'Close a trade route', verb: 'Close route', hint: 'Frees a route for a richer partner.', targets: pactsOf,
     note: (W, h, t) => (atWar(W, h, t) ? 'Pays nothing while you are at war' : `You give up about ${gold(routePay(h, t))} gold a year, and they think less of you`),
     run(W, h, t) { W.pacts = W.pacts.filter(p => !((p.a === h.id && p.b === t.id) || (p.a === t.id && p.b === h.id))); sway(t, h, -15); },
   },
   gift: {
-    group: 'power', kind: 'house', label: 'Send gifts', hint: 'Raises their opinion of you.', targets: contacts, cost: (W, h) => unit(h) * .5, reach: () => FAR,
+    group: 'power', kind: 'house', label: 'Send gifts', verb: 'Send gift', hint: 'Raises their opinion of you.', targets: contacts, cost: (W, h) => unit(h) * .5, reach: () => FAR,
     run: (W, h, t) => sway(t, h, 20),
   },
   slander: {
-    group: 'power', kind: 'house', label: 'Spread slander', hint: `Cuts a rival's prestige and the loyalty of its followers. It can backfire.`, targets: rivals, cost: (W, h) => unit(h) * .5, reach: APART,
+    group: 'power', kind: 'house', label: 'Spread slander', verb: 'Slander', hint: `Cuts a rival's prestige and the loyalty of its followers. It can backfire.`, targets: rivals, cost: (W, h) => unit(h) * .5, reach: APART,
     run(W, h, t) {
       if (chance(W, .35 + .04 * h.head.a + (is(h, 'Schemer') ? .15 : 0))) {
         t.prestige *= .8;
@@ -1521,7 +1521,7 @@ const ACTIONS = {
     },
   },
   stir: {
-    group: 'power', kind: 'house', label: `Stir their ${LABEL.folk}`, hint: `Turns a rival's followers against it wherever you both have a following.`, targets: rivals, cost: (W, h) => unit(h), reach: APART,
+    group: 'power', kind: 'house', label: `Stir their ${LABEL.folk}`, verb: 'Stir up', hint: `Turns a rival's followers against it wherever you both have a following.`, targets: rivals, cost: (W, h) => unit(h), reach: APART,
     run(W, h, t) {
       for (const r of holds(W, h)) if (r.shares[t.id]) r.shares[t.id].favor -= 15;
       if (chance(W, .5)) sway(t, h, -40);
@@ -1529,7 +1529,7 @@ const ACTIONS = {
     },
   },
   coup: {
-    big: true, group: 'power', kind: 'region', label: 'Seize a throne', hint: 'Plot against the ruler of a land where you have a following. It may work in a night, fail, or become civil war.',
+    big: true, group: 'power', kind: 'region', label: 'Seize a throne', verb: 'Seize', hint: 'Plot against the ruler of a land where you have a following. It may work in a night, fail, or become civil war.',
     targets: (W, h) => holds(W, h).filter(r => r.ruler !== h.id), cost: (W, h) => unit(h) * 2,
     note: (W, h, r) => `Ruled by House ${house(W, r.ruler).name}. Your power is ${pct(h.power / (house(W, r.ruler).power || 1))} of theirs`,
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : 'You need a following here first.'),
@@ -1537,7 +1537,7 @@ const ACTIONS = {
     run: (W, h, r) => coup(W, h, r),
   },
   purge: {
-    big: true, group: 'power', kind: 'house', label: 'Drive out a house', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, though your own grow less loyal. Lose and it rises against you in civil war.',
+    big: true, group: 'power', kind: 'house', label: 'Drive out a house', verb: 'Drive out', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, though your own grow less loyal. Lose and it rises against you in civil war.',
     targets: (W, h) => alive(W).filter(o => o !== h && ruled(W, h).some(r => r.shares[o.id])), cost: (W, h) => unit(h) * 3,
     note: (W, h, t) => `${pct(routOdds(h, t))} chance. It holds ${ruled(W, h).filter(r => r.shares[t.id]).map(r => `${pct(r.shares[t.id].s)} of ${land(r)}`).join(', ')}`,
     reach: (W, h) => (h.thrones ? 'It has no following in a land you rule.' : 'Only a house that rules a land can drive another out.'),
@@ -1545,7 +1545,7 @@ const ACTIONS = {
     run: (W, h, t) => purge(W, h, t),
   },
   war: {
-    big: true, group: 'power', kind: 'region', label: 'March to war', hint: 'A ruling house can take a neighbouring land by force. War costs gold, lives and the land itself.',
+    big: true, group: 'power', kind: 'region', label: 'March to war', verb: 'Declare war', hint: 'A ruling house can take a neighbouring land by force. War costs gold, lives and the land itself.',
     targets: borders, cost: (W, h) => unit(h) * 2,
     note(W, h, r) {
       const b = house(W, r.ruler), n = fronts(W, h).length, split = sum(fronts(W, h), w => (w.main?.includes(h.id) ? CFG.mainFront : 1)) + 1;
@@ -1556,21 +1556,21 @@ const ACTIONS = {
     run: (W, h, r) => startWar(W, h, r),
   },
   reinforce: {
-    group: 'power', kind: 'region', label: 'Name a main front', hint: `Your soldiers are shared equally among your wars. The main front gets ${CFG.mainFront} shares and the others one each.`,
+    group: 'power', kind: 'region', label: 'Name a main front', verb: 'Make main', hint: `Your soldiers are shared equally among your wars. The main front gets ${CFG.mainFront} shares and the others one each.`,
     targets: (W, h) => (fronts(W, h).length > 1 ? fronts(W, h).map(w => W.regions[w.r]) : []),
     why: (W, h, r) => (warAt(W, h, r).main?.includes(h.id) ? 'Already your main front' : ''),
     note: (W, h, r) => frontLine(W, h, warAt(W, h, r)),
     run(W, h, r) { for (const w of fronts(W, h)) w.main = (w.main ?? []).filter(id => id !== h.id).concat(w.r === r.i ? [h.id] : []); },
   },
   assault: {
-    big: true, group: 'power', kind: 'region', label: 'Stake it on one battle', hint: 'Force a decisive battle in a war you are in. The stronger side usually wins, and the war swings hard either way. Once a year.',
+    big: true, group: 'power', kind: 'region', label: 'Stake it on one battle', verb: 'Attack', hint: 'Force a decisive battle in a war you are in. The stronger side usually wins, and the war swings hard either way. Once a year.',
     targets: (W, h) => fronts(W, h).map(w => W.regions[w.r]), cost: (W, h) => unit(h) * 4,
     why: (W, h, r) => (warAt(W, h, r).struck === W.year ? 'A battle was already forced here this year' : ''),
     note(W, h, r) { const w = warAt(W, h, r), [sa, sb] = strength(W, w); return `${pct((w.a === h.id ? sa : sb) / (sa + sb + 1e-9))} chance to win it. ${frontLine(W, h, w)}`; },
     run: (W, h, r) => assault(W, h, warAt(W, h, r)),
   },
   yield: {
-    big: true, group: 'power', kind: 'region', label: 'Pay them to go home', hint: 'End a war against you by paying the attacker. They refuse if they are winning clearly.',
+    big: true, group: 'power', kind: 'region', label: 'Pay them to go home', verb: 'Pay', hint: 'End a war against you by paying the attacker. They refuse if they are winning clearly.',
     targets: (W, h) => W.wars.filter(w => w.b === h.id && w.kind === 'war').map(w => W.regions[w.r]), cost: (W, h) => unit(h) * 6,
     why: (W, h, r) => (warAt(W, h, r).tide >= .5 ? 'They are winning and will not take gold' : ''),
     note: (W, h, r) => frontLine(W, h, warAt(W, h, r)),
@@ -1582,7 +1582,7 @@ const ACTIONS = {
     },
   },
   peace: {
-    big: true, group: 'power', kind: 'region', label: 'Call off a war', hint: 'Ends a war you started, at a cost in prestige.',
+    big: true, group: 'power', kind: 'region', label: 'Call off a war', verb: 'Call off', hint: 'Ends a war you started, at a cost in prestige.',
     targets: (W, h) => W.wars.filter(w => w.a === h.id).map(w => W.regions[w.r]),
     run(W, h, r) {
       W.wars = W.wars.filter(w => !(w.a === h.id && w.r === r.i));
@@ -1591,13 +1591,13 @@ const ACTIONS = {
     },
   },
   fund: {
-    group: 'know', kind: 'option', label: 'Fund scholars', hint: `Each level costs ${CFG.fundCost * 100}% of your income and speeds knowledge wherever you have followers.`,
+    group: 'know', kind: 'option', label: 'Fund scholars', verb: 'Fund', hint: `Each level costs ${CFG.fundCost * 100}% of your income and speeds knowledge wherever you have followers.`,
     targets: () => FUNDS.map((_, i) => i), name: v => FUNDS[v], now: h => h.fund,
     why: (W, h, v) => (v <= fundCap(W, h) ? '' : v === 2 ? 'Needs paper' : 'Needs the university'),
     run(W, h, v) { h.fund = v; },
   },
   press: {
-    group: 'power', kind: 'house', label: 'Print pamphlets', hint: `Floods a rival's lands with print. Its followers lose loyalty and yours gain it. Needs the printing press.`,
+    group: 'power', kind: 'house', label: 'Print pamphlets', verb: 'Print', hint: `Floods a rival's lands with print. Its followers lose loyalty and yours gain it. Needs the printing press.`,
     targets: rivals, cost: (W, h) => unit(h), reach: APART,
     why: (W, h) => (knows(W, h, 'The printing press') ? '' : 'Needs the printing press'),
     run(W, h, t) {
@@ -1607,7 +1607,7 @@ const ACTIONS = {
     },
   },
   bomb: {
-    big: true, group: 'power', kind: 'region', label: 'Use the bomb', hint: 'Ends a war you are fighting in a day, at a terrible price in lives and in what every house thinks of you. Needs the atomic bomb.',
+    big: true, group: 'power', kind: 'region', label: 'Use the bomb', verb: 'Use the bomb', hint: 'Ends a war you are fighting in a day, at a terrible price in lives and in what every house thinks of you. Needs the atomic bomb.',
     targets: (W, h) => W.wars.filter(w => w.a === h.id || w.b === h.id).map(w => W.regions[w.r]), cost: (W, h) => unit(h) * 4,
     why: (W, h) => (knows(W, h, 'The atomic bomb') ? '' : 'Needs the atomic bomb'),
     run(W, h, r) {
@@ -1622,7 +1622,7 @@ const ACTIONS = {
 };
 
 const cost = (W, h, id, t) => Math.ceil(ACTIONS[id].cost?.(W, h, t) ?? 0);
-const barred = (W, h, id, t) => ACTIONS[id].why?.(W, h, t) || (h.gold < cost(W, h, id, t) ? 'Not enough gold' : '');
+const barred = (W, h, id, t) => ACTIONS[id].why?.(W, h, t) || (h.gold < cost(W, h, id, t) ? `Need ${gold(Math.ceil(cost(W, h, id, t) - h.gold))} more gold` : '');
 function perform(W, h, id, t) {
   if (barred(W, h, id, t)) return false;
   h.gold -= cost(W, h, id, t);
@@ -2651,7 +2651,7 @@ const targetId = (a, h, t) => (a.kind === 'house' ? t.id : a.kind === 'region' ?
 // One action button for one target, with its price, or greyed out with the reason.
 function go(W, id, t) {
   const h = me(W), why = barred(W, h, id, t), c = cost(W, h, id, t);
-  return `<button data-act="${id}" data-t="${targetId(ACTIONS[id], h, t)}" ${why ? 'disabled' : ''}>${UI.choose}${c ? `<em>${gold(c)} gold</em>` : ''}</button>`
+  return `<button data-act="${id}" data-t="${targetId(ACTIONS[id], h, t)}" ${why ? 'disabled' : ''}>${ACTIONS[id].verb ?? UI.choose}${c ? `<em>${gold(c)} gold</em>` : ''}</button>`
     + (why ? `<small class="why">${why}</small>` : '');
 }
 
@@ -2698,7 +2698,7 @@ function taxOptions(W) {
   const h = me(W), a = ACTIONS[id];
   return `<section class="options"><h3>${a.label}</h3><p>${a.hint}</p><div class="choice-grid">${rows(a.targets(W, h), t => {
     const why = barred(W, h, id, t), active = a.now(h) === t;
-    return `<button data-act="${id}" data-t="${t}" class="choice ${active ? 'selected' : ''}" aria-pressed="${active}" ${why || active ? 'disabled' : ''}><span>${icon(active ? 'check' : why ? 'lock' : 'coin')}<b>${a.name(t)}</b></span><small>${why || (active ? UI.current : UI.choose)}</small></button>`;
+    return `<button data-act="${id}" data-t="${t}" class="choice ${active ? 'selected' : ''}" aria-pressed="${active}" ${why || active ? 'disabled' : ''}><span>${icon(active ? 'check' : why ? 'lock' : 'coin')}<b>${a.name(t)}</b></span><small>${why || (active ? UI.current : a.verb)}</small></button>`;
   })}</div></section>`;
 }
 function research(W, h) {
@@ -2755,7 +2755,7 @@ function moves(W, kind, t, heading) {
   const h = me(W), list = rows(Object.entries(ACTIONS).filter(([, a]) => a.kind === kind), ([id, a]) => {
     const near = a.targets(W, h).includes(t);
     if (!near && !a.reach) return '';
-    return `<li><span>${a.label}${near ? detail(W, a, t) : ''}</span>${near ? go(W, id, t) : `<button disabled>Choose</button><small class="why">${a.reach(W, h, t)}</small>`}</li>`;
+    return `<li><span>${a.label}${near ? detail(W, a, t) : ''}</span>${near ? go(W, id, t) : `<button disabled>${a.verb ?? UI.choose}</button><small class="why">${a.reach(W, h, t)}</small>`}</li>`;
   });
   return list ? `<section><h3>${heading}</h3><ul>${list}</ul></section>` : '';
 }
