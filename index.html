@@ -413,6 +413,8 @@ summary::-webkit-details-marker { display:none; }
 .child-acts button em { font-style:normal; color:var(--gold); margin-left:6px; }
 .child-acts span { font-size:12px; color:var(--dim); } .child-acts span.why { color:var(--bad); }
 .job-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; font-size:13px; color:#b9c7d8; } .job-list b { color:var(--ink); }
+#sheet>.action-result { animation:toast 2.6s ease-in forwards; }
+@keyframes toast { 0%,80% { opacity:1; } 100% { opacity:0; } }
 </style>
 </head>
 <body>
@@ -436,7 +438,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:55 PM ET · 8b55b6c';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 1:39 PM ET · 2097cc6';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -496,6 +498,9 @@ const CFG = {
   storyGap: [9, 16],     // years between story events
   storyRest: 45,         // years before the same story may be told again
   tutor: { base: 2, per: .5, rest: 5, odds: [.25, .75, .95] },   // a tutor costs (base + per x ability) price units; a child rests `rest` years between tutors; odds: nothing, +1, +2, else +3
+  // Lands away from the seat may break away when a head dies: chance = base + per x far lands - ability x the new head's ability,
+  // capped at cap, then scaled by how loyal that land is (calm at loyalty 75+). At most `most` lands go in one succession.
+  split: { base: .04, per: .012, ability: .006, cap: .3, most: 3 },
   commanderRisk: .03, restless: .12,   // yearly chance a commander dies at war; added chance a far land breaks away under a passed-over governor
   mainFront: 3,          // weight of the front a house names its main effort; every other front weighs 1
   goalGold: 5, goalPrestige: 10,   // reward for a ruler's goal: gold in price units, and prestige
@@ -507,6 +512,7 @@ const CFG = {
   offerGap: { marry: 20, pact: 8 },   // fewest years between offers of each kind reaching the player
   adult: 16,             // age at which a child can marry or lead a branch
   speeds: [1600, 600, 160],   // milliseconds per year
+  toast: 2600,           // ms the small result message stays up after a routine action
   breath: 200,           // pause after a card or report is answered, before time moves again
 };
 
@@ -572,6 +578,7 @@ const GUIDE = {
     ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
     ['No heir', 'If the head dies with no living child, a cousin carries on and your prestige is halved.'],
     ['Marriages', 'Marry a child aged 16 or older into another house. That house becomes an ally and lends soldiers in your wars.'],
+    ['Far lands', 'When a head dies, lands away from your seat may break away under a cousin. Loyal lands and an able heir make it far less likely.'],
     ['Jobs and tutors', 'Give a grown child a job: governor, commander, scholar or envoy. Pay a tutor to try to raise a child\'s ability.'],
   ],
   goys: [
@@ -1167,11 +1174,27 @@ function lineFails(W, h, old, how) {
   bury(W, h);
 }
 
+// The chance that land r, away from the seat, breaks away when a head of the given ability takes over `far` such lands.
+const splitOdds = (r, h, far, ability, restless) => clamp(CFG.split.base + CFG.split.per * far - CFG.split.ability * ability + (restless ? CFG.restless : 0), .01, CFG.split.cap)
+  * clamp((85 - r.shares[h.id].loy) / 40, .25, 1.5) * (r.know >= 1837 ? .4 : 1);
+// What the player risks if the head died today: the far lands and the chance for each, worst first.
+function splitRisk(W, h) {
+  const heir = heirOf(W, h), far = ruled(W, h).filter(r => r.i !== h.seat && r.shares[h.id]);
+  const restless = h.kids.some(k => k.job === 'governor' && k !== heir);
+  return far.map(r => ({ r, odds: splitOdds(r, h, far.length, heir?.a ?? 5, restless) })).sort((a, b) => b.odds - a.odds);
+}
+
 // On each succession, far-off lands may slip away under a cadet branch.
 function breakAway(W, h, restless) {
   const far = ruled(W, h).filter(r => r.i !== h.seat && r.shares[h.id]);
+  let lost = 0;
+  const mine = h.id === W.player;
   for (const r of far) {
-    if (!chance(W, clamp(.08 + .03 * far.length - .008 * h.head.a + (restless ? CFG.restless : 0), .02, .5) * (r.know >= 1837 ? .4 : 1))) continue;
+    // The player's house follows the gentler, loyalty-based rule it is shown; other houses keep the older, harsher one,
+    // which is what stops great AI realms from lasting and keeps the world's pace where it was tuned.
+    const odds = mine ? splitOdds(r, h, far.length, h.head.a, restless) : clamp(.08 + .03 * far.length - .008 * h.head.a, .02, .5) * (r.know >= 1837 ? .4 : 1);
+    if ((mine && lost >= CFG.split.most) || !chance(W, odds)) continue;
+    lost++;
     const b = newHouse(W, r, { cul: h.cul, parent: h.id, prestige: h.prestige * .5 });
     r.shares[b.id] = r.shares[h.id];
     delete r.shares[h.id];
@@ -1187,7 +1210,7 @@ function wed(W, a, b) {
   note(W, `House ${a.name} and House ${b.name} are joined by marriage.`, { h: a.id, x: b.id, r: a.seat });
 }
 
-return { grown, unwed, heirOf, heirLine, lose, stepFamily, succeed, wed };
+return { grown, unwed, heirOf, heirLine, lose, stepFamily, succeed, splitOdds, splitRisk, wed };
 })();
 __m['js/sim/nature.js'] = (() => {
 // Nature keeps our world's calendar: the same eruptions and plagues, in the same years.
@@ -2620,7 +2643,7 @@ const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct } = __m['js/sim/util.js'];
 const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear } = __m['js/sim/state.js'];
 const { ACTIONS, cost, barred, frontLine } = __m['js/sim/actions.js'];
-const { heirOf, unwed } = __m['js/sim/family.js'];
+const { heirOf, unwed, splitRisk } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
 const { GOALS, goalLine } = __m['js/sim/goals.js'];
 const { esc, tint } = __m['js/ui/dom.js'];
@@ -2782,9 +2805,11 @@ function familyGroup(W, h) {
   const heir = heirOf(W, h), allies = alive(W).filter(o => o !== h && tied(W, h, o));
   const succession = heir ? state('family', `${UI.succession}: ${esc(heir.n)}`, `${trait(heir.t)} · Age ${W.year - heir.b} · Ability ${heir.a}/10`) :
     `<div class="notice warning">${icon('alert')}<div><b>${UI.noHeir}</b><p>Succession is vulnerable.</p><details data-section="succession"><summary>How succession works →</summary><p>${UI.heirHelp}</p></details></div></div>`;
+  const risk = splitRisk(W, h);
+  const split = risk.length ? `<details class="action-section" data-section="split"><summary><span>If ${esc(h.head.n)} died today</span><small>up to ${pct(risk[0].odds)} a land</small>${icon('chevron')}</summary><div class="action-body"><p>Lands away from your seat may break away under a cousin when a head dies. At most ${CFG.split.most} go at once. Loyal followers, an able heir and fewer far lands all lower the chance.</p><ul class="job-list">${rows(risk, x => `<li><b>${REGIONS[x.r.i].name}</b> ${pct(x.odds)} chance · ${Math.round(x.r.shares[h.id].loy)}% loyal</li>`)}</ul></div></details>` : '';
   const marry = unwed(W, h).length ? actionSection(W,'marry',true) : state('lock', UI.alliances, UI.marriageHelp);
   const history = `<details class="action-section history" data-section="line"><summary>${icon('scroll')}<span>${UI.history}</span>${icon('chevron')}</summary><ol class="family-line">${rows([...W.chron].reverse(), p => `<li><b>${esc(p.n)}</b><span>${p.from} – ${p.to ?? W.year}</span><small>${p.t}</small></li>`)}</ol>${actionSection(W,'branch')}</details>`;
-  return hero(W, h) + succession + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? children(W, h) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
+  return hero(W, h) + succession + split + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? children(W, h) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
     ${allies.length ? `<section><h3>${UI.alliances} · ${allies.length}</h3><ul class="allies">${rows(allies, o => `<li>${ref(o, true)}<small>${Math.max(0, CFG.tieYears - (W.year - h.ties[o.id]))} years remaining</small></li>`)}</ul></section>` : ''}${marry}${history}`;
 }
 
@@ -3096,6 +3121,7 @@ function render() {
   if (G.open) {
     const body = $('sheet').querySelector('.body'), saved = G.panels[G.open];
     if (G.said) $('sheet').insertAdjacentHTML('beforeend', `<p class="action-result" role="status">${icon('check')}${esc(G.said)}</p>`);   // floats over the page, so the list underneath does not move
+    clearTimeout(G.toast); G.toast = setTimeout(() => { G.said = ''; document.querySelector('#sheet>.action-result')?.remove(); }, CFG.toast);
     if (saved) {
       body.querySelectorAll('[data-section]').forEach(el => { if (el.dataset.section in saved.details) el.open = saved.details[el.dataset.section]; });
       body.querySelectorAll('.target-filter').forEach((el, i) => { el.value = saved.filters[i] || ''; filterList(el); });
