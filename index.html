@@ -402,6 +402,17 @@ summary::-webkit-details-marker { display:none; }
 .front b { font-size:15px; } .front em { font:600 11px var(--body); color:var(--gold); margin-left:6px; }
 .front small { color:#b9c7d8; font-size:12.5px; text-transform:none; letter-spacing:0; font-weight:400; }
 .tide { height:8px; border-radius:4px; background:#7a3340; overflow:hidden; } .tide i { display:block; height:100%; background:#5fbf78; }
+.child { display:grid; gap:7px; padding:11px 12px; margin-bottom:8px; border:1px solid var(--line); border-radius:10px; background:#152841; }
+.child>b { font-size:16px; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.child>b em { font:700 10.5px var(--body); letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:var(--gold); color:var(--deep); }
+.child>b em.job { background:#2f6b4c; color:#eafff0; }
+.child>small { color:#b9c7d8; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; }
+.child-acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.child-acts button { min-height:36px; padding:6px 10px; font-size:12.5px; background:#263d59; }
+.child-acts button.on { background:#2f6b4c; border-color:#5fbf78; color:#fff; }
+.child-acts button em { font-style:normal; color:var(--gold); margin-left:6px; }
+.child-acts span { font-size:12px; color:var(--dim); } .child-acts span.why { color:var(--bad); }
+.job-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; font-size:13px; color:#b9c7d8; } .job-list b { color:var(--ink); }
 </style>
 </head>
 <body>
@@ -425,7 +436,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:49 PM ET · 9247a05';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:55 PM ET · 8b55b6c';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -484,6 +495,8 @@ const CFG = {
   price: 3,              // gold per square root of yearly income: prices rise far slower than wealth
   storyGap: [9, 16],     // years between story events
   storyRest: 45,         // years before the same story may be told again
+  tutor: { base: 2, per: .5, rest: 5, odds: [.25, .75, .95] },   // a tutor costs (base + per x ability) price units; a child rests `rest` years between tutors; odds: nothing, +1, +2, else +3
+  commanderRisk: .03, restless: .12,   // yearly chance a commander dies at war; added chance a far land breaks away under a passed-over governor
   mainFront: 3,          // weight of the front a house names its main effort; every other front weighs 1
   goalGold: 5, goalPrestige: 10,   // reward for a ruler's goal: gold in price units, and prestige
   rivalRest: 15,         // years a rival waits after striking at the player before it strikes again
@@ -539,6 +552,14 @@ const TIPS = {
 
 
 // Mobile interface copy. Presentation state stays in G; these labels do not change the save schema.
+// Work a grown child of the player's house can be given. One child per job. by: the effect per point of the child's ability.
+const JOBS = {
+  governor: { name: 'Governor', by: .6, gives: 'Followers in the lands you rule are more loyal: +0.6 for each point of ability. If the governor is not your heir, far lands are likelier to break away when you die.' },
+  commander: { name: 'Commander', by: .02, gives: 'Your soldiers are 2% stronger for each point of ability, and you gain prestige while at war. In a war year there is a 3% chance the commander is killed.' },
+  scholar: { name: 'Scholar', by: .1, gives: 'Adds to your scholars: each point of ability is worth a tenth of a funding level.' },
+  envoy: { name: 'Envoy', by: .2, gives: 'Every house that knows you thinks better of you each year, faster with ability, up to an opinion of 50.' },
+};
+
 // Tutorials: short screens shown in order the first time the player reaches each part of the game.
 // `start` opens a new game; the other keys are the page that triggers them.
 const GUIDE = {
@@ -551,6 +572,7 @@ const GUIDE = {
     ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
     ['No heir', 'If the head dies with no living child, a cousin carries on and your prestige is halved.'],
     ['Marriages', 'Marry a child aged 16 or older into another house. That house becomes an ally and lends soldiers in your wars.'],
+    ['Jobs and tutors', 'Give a grown child a job: governor, commander, scholar or envoy. Pay a tutor to try to raise a child\'s ability.'],
   ],
   goys: [
     [`Your ${LABEL.folk}`, `Your income is the tax your ${LABEL.folk} pay. Raise it and you earn more now, but they grow less loyal and may leave you or revolt.`],
@@ -617,7 +639,7 @@ Object.assign(TIPS, {
   'Time paused': 'Management panels and decisions stop the clock. Return to the map and press Play to continue.',
 });
 
-return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, GUIDE, UI };
+return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, JOBS, GUIDE, UI };
 })();
 __m['js/data/regions.js'] = (() => {
 // The lands of year 0. pop: millions of people. know: the year of our history its knowledge matches.
@@ -863,7 +885,7 @@ return { clamp, lerp, sum, maxBy, curve, rnd, chance, range, pick, gold, people,
 })();
 __m['js/sim/state.js'] = (() => {
 // The world's data model and the lookups everything else shares. The world is plain JSON so it can be saved as is.
-const { CFG, TRAITS, UNLOCKS, START } = __m['js/config.js'];
+const { CFG, JOBS, TRAITS, UNLOCKS, START } = __m['js/config.js'];
 const { REGIONS, named } = __m['js/data/regions.js'];
 const { CULTURES } = __m['js/data/cultures.js'];
 const { OURS, TECHS } = __m['js/data/history.js'];
@@ -878,6 +900,8 @@ const holds = (W, h) => W.regions.filter(r => r.shares[h.id]);
 const locals = (W, r) => Object.keys(r.shares).map(id => W.houses[id]);
 const is = (h, trait) => h.head.t === trait;
 const ability = h => .7 + .06 * h.head.a;
+// What a child in a job adds: the child's ability times the job's rate, or 0 when nobody holds it.
+const job = (h, k) => (h.kids.find(x => x.job === k)?.a ?? 0) * JOBS[k].by;
 const base = r => r.pop * r.wealth * 10;                       // a land's taxable economy
 const mil = know => 1 + Math.max(0, know - 800) / 400;         // how much better weapons have become
 const tied = (W, a, b) => W.year - (a.ties[b.id] ?? -999) < CFG.tieYears;
@@ -1060,12 +1084,12 @@ function refresh(W) {
     const trade = sum(pactsOf(W, h), o => (atWar(W, h, o) ? 0 : CFG.trade * Math.sqrt(h.base * o.base))) * (is(h, 'Merchant') ? 1.4 : 1);
     h.trade = trade;
     h.inc = (h.base * h.tax + h.crown + trade) * ability(h) * (is(h, 'Wastrel') ? .75 : 1) * (1 - CFG.fundCost * h.fund);
-    h.levy *= ability(h) * (is(h, 'Warlike') ? 1.3 : 1);
+    h.levy *= ability(h) * (is(h, 'Warlike') ? 1.3 : 1) * (1 + job(h, 'commander'));
     h.power = (h.levy + Math.sqrt(h.gold) * 2) * (1 + h.prestige / 100);
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1113,12 +1137,13 @@ function succeed(W, h, how) {
   const old = h.head, heir = heirOf(W, h), mine = h.id === W.player;
   if (mine) W.chron.at(-1).to = W.year;
   if (!heir) return lineFails(W, h, old, how);
+  const restless = h.kids.some(k => k.job === 'governor' && k !== heir);
   h.head = { n: heir.n, b: heir.b, t: heir.t, a: heir.a };
   h.kids = Array.from({ length: Math.min(3, Math.floor((clamp(age(W, heir), 18, 48) - 18) / 8)) }, () => newPerson(W, h.cul, W.year - Math.floor(rnd(W) * 14), h.head));
   enthrone(W, h);
   note(W, `${old.n} of House ${h.name} ${how}. ${heir.n} the ${heir.t} now leads.`, { h: h.id, r: h.seat, w: 0 });
   if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}. The family is now ${heir.n}'s own children (${h.kids.length}); ${heir.n}'s brothers and sisters leave the line.` });
-  breakAway(W, h);
+  breakAway(W, h, restless);
 }
 
 // No child lives. A house joined by marriage inherits; failing that a cousin may carry the name, or the house ends.
@@ -1143,10 +1168,10 @@ function lineFails(W, h, old, how) {
 }
 
 // On each succession, far-off lands may slip away under a cadet branch.
-function breakAway(W, h) {
+function breakAway(W, h, restless) {
   const far = ruled(W, h).filter(r => r.i !== h.seat && r.shares[h.id]);
   for (const r of far) {
-    if (!chance(W, clamp(.08 + .03 * far.length - .008 * h.head.a, .02, .5) * (r.know >= 1837 ? .4 : 1))) continue;
+    if (!chance(W, clamp(.08 + .03 * far.length - .008 * h.head.a + (restless ? CFG.restless : 0), .02, .5) * (r.know >= 1837 ? .4 : 1))) continue;
     const b = newHouse(W, r, { cul: h.cul, parent: h.id, prestige: h.prestige * .5 });
     r.shares[b.id] = r.shares[h.id];
     delete r.shares[h.id];
@@ -1238,7 +1263,7 @@ const { CFG, LABEL } = __m['js/config.js'];
 const { REGIONS, named } = __m['js/data/regions.js'];
 const { OURS, TECHS } = __m['js/data/history.js'];
 const { chance, range, clamp, lerp, curve, sum, maxBy } = __m['js/sim/util.js'];
-const { locals, linked, is, ability, note, newHouse, addShare, moveShare, dropShare, setRuler } = __m['js/sim/state.js'];
+const { locals, linked, is, ability, note, newHouse, addShare, moveShare, dropShare, setRuler, job } = __m['js/sim/state.js'];
 
 const K = CFG.know;
 
@@ -1255,7 +1280,7 @@ function stepRegion(W, r) {
 
 // Knowledge grows from schools, funded scholars and readers, and seeps in from better-read neighbours and trade partners.
 function learn(W, r, R, aim) {
-  const fund = sum(locals(W, r), h => r.shares[h.id].s * h.fund * ability(h) * (is(h, 'Scholar') ? 1.5 : 1));
+  const fund = sum(locals(W, r), h => r.shares[h.id].s * (h.fund + job(h, 'scholar')) * ability(h) * (is(h, 'Scholar') ? 1.5 : 1));
   let gain = (K.base + K.school * r.works.schools + K.fund * fund + K.lit * r.lit) * (1 - r.waste) * (aim === 'science' ? 1.15 : aim === 'slow' ? .8 : 1) * (W.rules.genius ? 2.5 : 1);
   for (const j of new Set([...linked(W, r.i), ...W.trade[r.i]])) gain += clamp((W.regions[j].know - r.know) * K.spread * (W.trade[r.i].includes(j) ? 2 : 1), 0, K.spreadMax);
   const was = r.know;
@@ -1274,7 +1299,7 @@ function tend(W, r) {
   const hs = locals(W, r);
   for (const h of hs) {
     const sh = r.shares[h.id];
-    const want = 62 + (is(h, 'Just') ? 10 : 0) - (h.tax - .2) * 150 - sh.s * CFG.sizeDrag + sh.favor - r.waste * 40 - (r.plague ? 8 : 0) + (r.ruler === h.id ? 4 : 0);
+    const want = 62 + (is(h, 'Just') ? 10 : 0) - (h.tax - .2) * 150 - sh.s * CFG.sizeDrag + sh.favor - r.waste * 40 - (r.plague ? 8 : 0) + (r.ruler === h.id ? 4 + job(h, 'governor') : 0);
     sh.loy = clamp(sh.loy + (want - sh.loy) * .12 + range(W, -1.5, 1.5), 0, 100);
     sh.favor *= .9;
   }
@@ -1411,9 +1436,9 @@ __m['js/sim/actions.js'] = (() => {
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
 // verb is the word on the button. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
-const { CFG, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
+const { CFG, JOBS, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
-const { chance, sum, gold, people, pct } = __m['js/sim/util.js'];
+const { rnd, chance, sum, gold, people, pct } = __m['js/sim/util.js'];
 const { house, alive, holds, ruled, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap, fronts, strength } = __m['js/sim/state.js'];
 const { grown, unwed, wed } = __m['js/sim/family.js'];
 const { coup, purge, routOdds, startWar, assault } = __m['js/sim/conflict.js'];
@@ -1461,6 +1486,21 @@ const ACTIONS = {
     group: 'family', kind: 'kid', label: 'Name your heir', verb: 'Name heir', hint: 'Unless you name one, your eldest child inherits.',
     targets: (W, h) => h.kids, why: (W, h, k) => (k.heir ? 'Your named heir' : ''),
     run(W, h, k) { h.kids.forEach(x => delete x.heir); k.heir = true; },
+  },
+  ...Object.fromEntries(Object.keys(JOBS).map(k => [k, {
+    group: 'family', kind: 'kid', label: `Appoint a ${JOBS[k].name.toLowerCase()}`, verb: JOBS[k].name, hint: JOBS[k].gives,
+    targets: grown, now: h => h.kids.find(x => x.job === k),
+    run(W, h, kid) { const was = kid.job === k; for (const x of h.kids) if (x.job === k || x === kid) delete x.job; if (!was) kid.job = k; },   // choosing the holder again relieves them
+  }])),
+  tutor: {
+    big: true, group: 'family', kind: 'kid', label: 'Hire a tutor', verb: 'Tutor', hint: `Pay a master to teach a child. It may raise their ability by 1, 2 or 3, or do nothing. The abler the child, the dearer the master. A child rests ${CFG.tutor.rest} years between tutors.`,
+    targets: (W, h) => h.kids, cost: (W, h, k) => unit(h) * (CFG.tutor.base + CFG.tutor.per * k.a),
+    why: (W, h, k) => (k.a >= 10 ? 'As able as anyone alive' : W.year - k.b < 6 ? 'Too young to be taught' : W.year - (k.taught ?? -99) < CFG.tutor.rest ? `Resting until ${k.taught + CFG.tutor.rest}` : ''),
+    run(W, h, k) {
+      const roll = rnd(W), i = CFG.tutor.odds.findIndex(p => roll < p), gain = Math.min(10 - k.a, i < 0 ? 3 : i);
+      k.taught = W.year; k.a += gain;
+      note(W, gain ? `${k.n} of House ${h.name} studies under a master and comes away abler.` : `${k.n} of House ${h.name} learns nothing from an expensive master.`, { h: h.id, r: h.seat });
+    },
   },
   branch: {
     big: true, group: 'family', kind: 'region', label: 'Plant a branch abroad', verb: 'Send', hint: `Send a grown child to win a following of ${LABEL.folk} in another land.`,
@@ -2024,14 +2064,14 @@ return { GOALS, goalReward, goalLine, stepGoals };
 })();
 __m['js/sim/step.js'] = (() => {
 // The yearly tick, and what happens at the close of each century.
-const { END, ERA, LABEL, UNLOCKS } = __m['js/config.js'];
+const { CFG, END, ERA, LABEL, UNLOCKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
-const { clamp, pick, maxBy } = __m['js/sim/util.js'];
-const { house, alive, holds, is, note, bury, refresh, knows, sway } = __m['js/sim/state.js'];
+const { clamp, chance, pick, maxBy } = __m['js/sim/util.js'];
+const { house, alive, holds, is, note, bury, refresh, knows, sway, job, fronts, opinion } = __m['js/sim/state.js'];
 const { stepNature } = __m['js/sim/nature.js'];
 const { stepRegion } = __m['js/sim/realm.js'];
 const { stepWar } = __m['js/sim/conflict.js'];
-const { stepFamily } = __m['js/sim/family.js'];
+const { stepFamily, lose } = __m['js/sim/family.js'];
 const { think } = __m['js/sim/ai.js'];
 const { standings } = __m['js/sim/score.js'];
 const { tellStory } = __m['js/sim/stories.js'];
@@ -2060,6 +2100,11 @@ function keep(W, h) {
   h.prestige = clamp(h.prestige * .99 + h.thrones * .3, 0, 300);
   h.reign += h.thrones > 0; h.realm = Math.max(h.realm, h.thrones);
   for (const k in h.op) h.op[k] -= Math.sign(h.op[k]);       // grudges and favours fade
+  if (job(h, 'envoy')) for (const o of alive(W)) if (o !== h && o.op[h.id] !== undefined && opinion(o, h) < 50) sway(o, h, 1 + job(h, 'envoy'));
+  if (job(h, 'commander') && fronts(W, h).length) {
+    h.prestige += .3;
+    if (chance(W, CFG.commanderRisk)) lose(W, h, k => k.job === 'commander', 'falls in battle');
+  }
   if (!W.regions[h.seat].shares[h.id]) h.seat = maxBy(holds(W, h), r => r.shares[h.id].s).i;
 }
 
@@ -2569,7 +2614,7 @@ return { icon, crest, portrait, illustration };
 })();
 __m['js/ui/views.js'] = (() => {
 // Every screen as a function from world state to an HTML string. Nothing here changes the world.
-const { BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
+const { JOBS, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct } = __m['js/sim/util.js'];
@@ -2721,13 +2766,25 @@ function research(W, h) {
   const later = u ? UNLOCKS.slice(next + 1) : [];
   return metrics + discovery + funding + `<details class="research-more" data-section="research"><summary>Improve research →</summary><div class="research-links"><p>${UI.researchHelp}</p><button data-open="group:goys" data-reveal="schools">${UI.schools}${icon('chevron')}</button><button data-open="group:trade" data-reveal="pact">${UI.tradeHelp}${icon('chevron')}</button></div>${later.length ? `<h3>${UI.more}</h3><ul class="discovery-list">${rows(later,t => `<li><b>${t.tech}</b><p>${t.gives}</p><small>${eta(t)}</small></li>`)}</ul>` : ''}</details>`;
 }
+// Every child in one card: who they are, where they stand in the succession, their job, and what can be done with them.
+function children(W, h) {
+  const heir = heirOf(W, h), tap = (id, i, label, on) => { const why = barred(W, h, id, h.kids[i]); return `<button data-act="${id}" data-t="${i}" class="${on ? 'on' : ''}" ${why && !on ? 'disabled' : ''}>${label}</button>`; };
+  return rows(h.kids, (k, i) => {
+    const age = W.year - k.b, fee = cost(W, h, 'tutor', k), stuck = barred(W, h, 'tutor', k);
+    return `<div class="child"><b>${esc(k.n)}${k === heir ? '<em>Heir</em>' : ''}${k.job ? `<em class="job">${JOBS[k.job].name}</em>` : ''}</b>
+      <small>Age ${age} · ${trait(k.t)} · ${skill(k.a)}${k.m === undefined ? '' : ' · married'}</small>
+      <div class="child-acts">${k.heir ? '' : tap('heir', i, k === heir ? 'Confirm as heir' : 'Name heir')}${age >= CFG.adult ? rows(Object.keys(JOBS), j => tap(j, i, JOBS[j].name, k.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div>
+      <div class="child-acts"><button data-act="tutor" data-t="${i}" ${stuck ? 'disabled' : ''}>Hire a tutor<em>${gold(fee)} gold</em></button>${stuck ? `<span class="why">${stuck}</span>` : '<span>May add 1 to 3 ability, or nothing</span>'}</div></div>`;
+  }) + `<details class="action-section" data-section="jobs"><summary><span>What the jobs do</span>${icon('chevron')}</summary><div class="action-body"><p>One child per job. Tap a job again to relieve them.</p><ul class="job-list">${rows(Object.values(JOBS), j => `<li><b>${j.name}</b> ${j.gives}</li>`)}</ul><p>${ACTIONS.tutor.hint}</p></div></details>`;
+}
+
 function familyGroup(W, h) {
   const heir = heirOf(W, h), allies = alive(W).filter(o => o !== h && tied(W, h, o));
   const succession = heir ? state('family', `${UI.succession}: ${esc(heir.n)}`, `${trait(heir.t)} · Age ${W.year - heir.b} · Ability ${heir.a}/10`) :
     `<div class="notice warning">${icon('alert')}<div><b>${UI.noHeir}</b><p>Succession is vulnerable.</p><details data-section="succession"><summary>How succession works →</summary><p>${UI.heirHelp}</p></details></div></div>`;
   const marry = unwed(W, h).length ? actionSection(W,'marry',true) : state('lock', UI.alliances, UI.marriageHelp);
   const history = `<details class="action-section history" data-section="line"><summary>${icon('scroll')}<span>${UI.history}</span>${icon('chevron')}</summary><ol class="family-line">${rows([...W.chron].reverse(), p => `<li><b>${esc(p.n)}</b><span>${p.from} – ${p.to ?? W.year}</span><small>${p.t}</small></li>`)}</ol>${actionSection(W,'branch')}</details>`;
-  return hero(W, h) + succession + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? actionSection(W, 'heir', true) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
+  return hero(W, h) + succession + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? children(W, h) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
     ${allies.length ? `<section><h3>${UI.alliances} · ${allies.length}</h3><ul class="allies">${rows(allies, o => `<li>${ref(o, true)}<small>${Math.max(0, CFG.tieYears - (W.year - h.ties[o.id]))} years remaining</small></li>`)}</ul></section>` : ''}${marry}${history}`;
 }
 
