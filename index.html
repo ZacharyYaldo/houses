@@ -410,11 +410,13 @@ summary::-webkit-details-marker { display:none; }
 .child-acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .child-acts button { min-height:36px; padding:6px 10px; font-size:12.5px; background:#263d59; }
 .child-acts button.on { background:#2f6b4c; border-color:#5fbf78; color:#fff; }
-.child-acts button em { font-style:normal; color:var(--gold); margin-left:6px; }
+.child-acts button em { display:inline; font-style:normal; color:var(--gold); margin-left:6px; }
 .child-acts span { font-size:12px; color:var(--dim); } .child-acts span.why { color:var(--bad); }
 .job-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; font-size:13px; color:#b9c7d8; } .job-list b { color:var(--ink); }
 #sheet>.action-result { animation:toast 2.6s ease-in forwards; }
 @keyframes toast { 0%,80% { opacity:1; } 100% { opacity:0; } }
+button.off { opacity:.5; }
+.action-result.no { border-color:#a8703f; background:#3b2415; color:#f6d3ad; font-size:13.5px; }
 </style>
 </head>
 <body>
@@ -438,7 +440,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 1:39 PM ET · 2097cc6';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 1:45 PM ET · 8842869';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -990,13 +992,15 @@ function dropShare(W, r, id) {
 
 /* ---------- people and houses ---------- */
 // A given name nobody living in this culture's great houses is using, where one is left.
-function freshName(W, cul) {
+function freshName(W, cul, kin) {
   const used = new Set(alive(W).filter(h => h.cul === cul).flatMap(h => [h.head.n, ...h.kids.map(k => k.n)]));
   const free = CULTURES[cul].names.filter(n => !used.has(n));
-  return pick(W, free.length ? free : CULTURES[cul].names);
+  if (free.length) return pick(W, free);
+  const own = new Set(kin ? [kin.head.n, ...kin.kids.map(k => k.n)] : []), spare = CULTURES[cul].names.filter(n => !own.has(n));
+  return pick(W, spare.length ? spare : CULTURES[cul].names);   // every name is taken somewhere: at least never twice in one family
 }
-const newPerson = (W, cul, born, parent) => ({
-  n: freshName(W, cul), b: born,
+const newPerson = (W, cul, born, parent, kin) => ({
+  n: freshName(W, cul, kin), b: born,
   t: parent && chance(W, .45) ? parent.t : pick(W, Object.keys(TRAITS)),
   a: clamp(Math.round((parent ? parent.a * .5 + 2.5 : 5) + range(W, -2.5, 2.5)) + (W.rules.genius ? 3 : 0), 1, 10),
 });
@@ -1135,7 +1139,7 @@ function lose(W, h, gone, how) {
 
 function stepFamily(W, h) {
   const life = curve(OURS.life, W.regions[h.seat].know) + (W.council.aim === 'health' ? 3 : 0), a = age(W, h.head);
-  if (a >= 18 && a <= 48 && h.kids.length < CFG.maxKids && chance(W, .2)) h.kids.push(newPerson(W, h.cul, W.year, h.head));
+  if (a >= 18 && a <= 48 && h.kids.length < CFG.maxKids && chance(W, .2)) h.kids.push(newPerson(W, h.cul, W.year, h.head, h));
   lose(W, h, k => dies(W, k, life), 'dies');
   if (dies(W, h.head, life)) succeed(W, h, 'dies');
 }
@@ -1146,7 +1150,8 @@ function succeed(W, h, how) {
   if (!heir) return lineFails(W, h, old, how);
   const restless = h.kids.some(k => k.job === 'governor' && k !== heir);
   h.head = { n: heir.n, b: heir.b, t: heir.t, a: heir.a };
-  h.kids = Array.from({ length: Math.min(3, Math.floor((clamp(age(W, heir), 18, 48) - 18) / 8)) }, () => newPerson(W, h.cul, W.year - Math.floor(rnd(W) * 14), h.head));
+  h.kids = [];                                             // one at a time, so each new name is checked against the last
+  for (let n = Math.min(3, Math.floor((clamp(age(W, heir), 18, 48) - 18) / 8)); n > 0; n--) h.kids.push(newPerson(W, h.cul, W.year - Math.floor(rnd(W) * 14), h.head, h));
   enthrone(W, h);
   note(W, `${old.n} of House ${h.name} ${how}. ${heir.n} the ${heir.t} now leads.`, { h: h.id, r: h.seat, w: 0 });
   if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}. The family is now ${heir.n}'s own children (${h.kids.length}); ${heir.n}'s brothers and sisters leave the line.` });
@@ -2716,10 +2721,12 @@ function bar(open = '', realm = 'group:goys') {
 /* ---------- actions ---------- */
 const targetId = (a, h, t) => (a.kind === 'house' ? t.id : a.kind === 'region' ? t.i : a.kind === 'kid' ? h.kids.indexOf(t) : a.kind === 'option' ? t : '');
 
+// A blocked button stays tappable so it can say why: the click handler shows data-why instead of acting.
+const off = why => (why ? ` class="off" aria-disabled="true" data-why="${esc(why)}"` : '');
 // One action button for one target, with its price, or greyed out with the reason.
 function go(W, id, t) {
   const h = me(W), why = barred(W, h, id, t), c = cost(W, h, id, t);
-  return `<button data-act="${id}" data-t="${targetId(ACTIONS[id], h, t)}" ${why ? 'disabled' : ''}>${ACTIONS[id].verb ?? UI.choose}${c ? `<em>${gold(c)} gold</em>` : ''}</button>`
+  return `<button data-act="${id}" data-t="${targetId(ACTIONS[id], h, t)}"${off(why)}>${ACTIONS[id].verb ?? UI.choose}${c ? `<em>${gold(c)} gold</em>` : ''}</button>`
     + (why ? `<small class="why">${why}</small>` : '');
 }
 
@@ -2791,13 +2798,13 @@ function research(W, h) {
 }
 // Every child in one card: who they are, where they stand in the succession, their job, and what can be done with them.
 function children(W, h) {
-  const heir = heirOf(W, h), tap = (id, i, label, on) => { const why = barred(W, h, id, h.kids[i]); return `<button data-act="${id}" data-t="${i}" class="${on ? 'on' : ''}" ${why && !on ? 'disabled' : ''}>${label}</button>`; };
+  const heir = heirOf(W, h), tap = (id, i, label, on) => `<button data-act="${id}" data-t="${i}"${on ? ' class="on"' : off(barred(W, h, id, h.kids[i]))}>${label}</button>`;
   return rows(h.kids, (k, i) => {
     const age = W.year - k.b, fee = cost(W, h, 'tutor', k), stuck = barred(W, h, 'tutor', k);
     return `<div class="child"><b>${esc(k.n)}${k === heir ? '<em>Heir</em>' : ''}${k.job ? `<em class="job">${JOBS[k.job].name}</em>` : ''}</b>
       <small>Age ${age} · ${trait(k.t)} · ${skill(k.a)}${k.m === undefined ? '' : ' · married'}</small>
-      <div class="child-acts">${k.heir ? '' : tap('heir', i, k === heir ? 'Confirm as heir' : 'Name heir')}${age >= CFG.adult ? rows(Object.keys(JOBS), j => tap(j, i, JOBS[j].name, k.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div>
-      <div class="child-acts"><button data-act="tutor" data-t="${i}" ${stuck ? 'disabled' : ''}>Hire a tutor<em>${gold(fee)} gold</em></button>${stuck ? `<span class="why">${stuck}</span>` : '<span>May add 1 to 3 ability, or nothing</span>'}</div></div>`;
+      <div class="child-acts">${k.heir ? '' : tap('heir', i, k === heir ? 'Confirm as heir' : 'Name heir')}<button data-act="tutor" data-t="${i}"${off(stuck)}>Hire a tutor<em>${gold(fee)} gold</em></button></div>
+      <div class="child-acts">${age >= CFG.adult ? rows(Object.keys(JOBS), j => tap(j, i, JOBS[j].name, k.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div></div>`;
   }) + `<details class="action-section" data-section="jobs"><summary><span>What the jobs do</span>${icon('chevron')}</summary><div class="action-body"><p>One child per job. Tap a job again to relieve them.</p><ul class="job-list">${rows(Object.values(JOBS), j => `<li><b>${j.name}</b> ${j.gives}</li>`)}</ul><p>${ACTIONS.tutor.hint}</p></div></details>`;
 }
 
@@ -3120,7 +3127,7 @@ function render() {
   for (const id of ['top', 'news', 'stage', 'mine', 'bar', 'sheet']) $(id).inert = !!m || !$('look').hidden;
   if (G.open) {
     const body = $('sheet').querySelector('.body'), saved = G.panels[G.open];
-    if (G.said) $('sheet').insertAdjacentHTML('beforeend', `<p class="action-result" role="status">${icon('check')}${esc(G.said)}</p>`);   // floats over the page, so the list underneath does not move
+    if (G.said) $('sheet').insertAdjacentHTML('beforeend', `<p class="action-result ${G.no ? 'no' : ''}" role="status">${icon(G.no ? 'alert' : 'check')}${esc(G.said)}</p>`);   // floats over the page, so the list underneath does not move
     clearTimeout(G.toast); G.toast = setTimeout(() => { G.said = ''; document.querySelector('#sheet>.action-result')?.remove(); }, CFG.toast);
     if (saved) {
       body.querySelectorAll('[data-section]').forEach(el => { if (el.dataset.section in saved.details) el.open = saved.details[el.dataset.section]; });
@@ -3189,7 +3196,8 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-go], [data-act], [data-open]');
   if (!el || el.disabled) return;
   const { go, act: id, open, t } = el.dataset;
-  rememberPanel(); G.said = '';
+  rememberPanel(); G.said = ''; G.no = false;
+  if (el.dataset.why) { G.said = el.dataset.why; G.no = true; return render(); }   // a blocked button says why
   if (go) GO[go.split(':')[0]](go.split(':')[1]);
   else if (id) act(id, t);
   else navigate(open, el.dataset.root === 'true');
