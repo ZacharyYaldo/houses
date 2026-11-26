@@ -342,10 +342,6 @@ summary::-webkit-details-marker { display:none; }
 .history>summary>span { flex:1; }
 .history>summary>.glyph:first-child { width:21px; height:21px; color:var(--gold); }
 .history .action-section { margin:8px; }
-.concept-page .realm-tabs { padding:2px; gap:1px; border-color:#788393; background:linear-gradient(#19293c,#0f1d2d); }
-.concept-page .realm-tabs .glyph { display:none; }
-.concept-page .realm-tabs button { min-height:37px; font-size:15px; color:var(--ink); border-radius:6px; }
-.concept-page .realm-tabs button.on { color:#18130c; background:linear-gradient(#ffd672,#f3af36); }
 .research-stats { display:grid; grid-template-columns:1fr 1fr; padding:3px 6px; border:1px solid #889099; border-radius:12px; background:linear-gradient(120deg,#1b2a3e,#0f1c2e); }
 .research-stats>div { display:flex; gap:9px; align-items:center; padding:8px 7px; min-width:0; }
 .research-stats>div:nth-child(odd) { border-right:1px solid #536070; }
@@ -422,6 +418,8 @@ button.off { opacity:.5; }
 .land-list .mood { display:flex; flex-wrap:wrap; gap:4px 6px; grid-column:1/-1; margin-top:4px; text-transform:none; letter-spacing:0; font-weight:500; }
 .land-list .mood i { font-style:normal; font-size:11.5px; padding:2px 6px; border-radius:5px; background:#17382a; color:#9fe0b3; } .land-list .mood i.down { background:#3a2020; color:#f0b0a3; }
 .action-section>.legend-note { margin:10px 12px; }
+#top .gold small.losing { color:#ff9c8a; }
+#sheet .scholars-page { padding-top:4px; }
 </style>
 </head>
 <body>
@@ -445,7 +443,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:40 PM ET · 1b6ba80';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:44 PM ET · 7ab2603';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -510,6 +508,7 @@ const CFG = {
   split: { base: .04, per: .012, ability: .006, cap: .3, most: 3 },
   commanderRisk: .03, restless: .12,   // yearly chance a commander dies at war; added chance a far land breaks away under a passed-over governor
   feastRest: 10, feastLift: 14,   // years between great feasts, and the loyalty one adds (it fades by a tenth a year)
+  warCost: .06,          // share of its gold a house spends on each war it is in, every year
   mainFront: 3,          // weight of the front a house names its main effort; every other front weighs 1
   goalGold: 5, goalPrestige: 10,   // reward for a ruler's goal: gold in price units, and prestige
   rivalRest: 15,         // years a rival waits after striking at the player before it strikes again
@@ -541,7 +540,7 @@ const TIPS = {
   Loyal: `How many of a house's followers are content. Heavy taxes, war and plague lower it. The discontented drift to better-loved houses, and below ${CFG.revoltAt}% they revolt.`,
   Tax: 'The cut of its followers\' wealth a house takes each year: light 10%, fair 20%, heavy 30%, crushing 45%. More gold now, less loyalty later.',
   Rules: `This house holds the throne here. It takes ${CFG.crown * 100}% of the whole land's economy on top of its taxes, and only a ruling house can march to war.`,
-  Gold: 'What a house has to spend. Income is taxes from its followers, a cut of every land it rules, and trade.',
+  Gold: 'What a house has to spend. The small number is how your gold will change this year: income from taxes, the lands you rule and trade, less 6% of your gold for each war you are in.',
   Thrones: 'How many lands this house rules.',
   'World rank': 'Rank among all living houses by power: soldiers, gold and prestige.',
   Soldiers: 'Fighting strength: loyal followers, better weapons as knowledge grows, and the ability of the head.',
@@ -962,6 +961,10 @@ const strength = (W, w) => {
   const a = W.houses[w.a], b = W.houses[w.b];
   return [force(W, a, w) + allyAid(W, a, b), (force(W, b, w) + allyAid(W, b, a)) * (w.kind === 'war' ? CFG.defend : 1)];
 };
+// What a house's gold will actually do this year: income, less what its wars cost and what a wastrel head squanders.
+// It mirrors the year's order: wars are paid first (stepWar), then income arrives and a wastrel wastes (keep in step.js).
+const net = (W, h) => (h.gold * (1 - CFG.warCost) ** fronts(W, h).length + h.inc) * (is(h, 'Wastrel') ? .97 : 1) - h.gold;
+const warBill = (W, h) => h.gold * (1 - (1 - CFG.warCost) ** fronts(W, h).length);
 const fullName = h => `${h.head.n} the ${h.head.t}`;
 
 // Lands a land can deal with: its neighbours, plus far shores once either side can cross the ocean.
@@ -1139,7 +1142,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, net, warBill, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1487,7 +1490,7 @@ function stepWar(W, w) {
     note(W, `The bomb is used in the war for ${R}.`, { r: r.i, h: a.id, x: b.id, w: 3 });
   }
   r.pop -= dead; w.dead += dead; W.tally.dead += dead;
-  r.waste = Math.min(.6, r.waste + .04); a.gold *= .94; b.gold *= .94;
+  r.waste = Math.min(.6, r.waste + .04); a.gold *= 1 - CFG.warCost; b.gold *= 1 - CFG.warCost;
   for (const h of [a, b]) if (is(h, 'Warlike') && chance(W, .02)) succeed(W, h, 'falls in battle');
   if (a.dead || b.dead || (Math.abs(w.tide) < 1 && years < 15)) return;
   over();
@@ -2695,7 +2698,7 @@ const { JOBS, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI }
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct } = __m['js/sim/util.js'];
-const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear, routeParts } = __m['js/sim/state.js'];
+const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear, routeParts, net, warBill } = __m['js/sim/state.js'];
 const { ACTIONS, cost, barred, frontLine } = __m['js/sim/actions.js'];
 const { heirOf, unwed, splitRisk } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
@@ -2745,7 +2748,7 @@ const realmTabs = g => `<nav class="tabs realm-tabs" aria-label="Realm">${rows([
 function hud(W, paused, speed) {
   const h = me(W);
   return `<div class="year stat"${hint('Year')}><span>Year</span> <b>${W.year}</b></div>
-    ${h ? `<button class="gold stat" data-open="group:trade"${hint('Gold')}>${icon('coin')}<span><b>${gold(h.gold)}</b><small>+${gold(h.inc)}/yr</small></span></button>` : '<span class="spacer"></span>'}
+    ${h ? `<button class="gold stat" data-open="group:trade"${hint('Gold')}>${icon('coin')}<span><b>${gold(h.gold)}</b><small class="${net(W, h) < 0 ? 'losing' : ''}">${net(W, h) < 0 ? '−' : '+'}${gold(Math.abs(net(W, h)))}/yr</small></span></button>` : '<span class="spacer"></span>'}
     <button class="icon play-button" data-go="pause" aria-label="${paused ? UI.play : UI.pause}">${icon(paused ? 'play' : 'pause')}</button>
     <select class="speed-select" aria-label="Game speed">${rows(CFG.speeds, (ms, i) => `<option value="${i}" ${i === speed ? 'selected' : ''}>${speedLabel(ms)}</option>`)}</select>`;
 }
@@ -2875,7 +2878,7 @@ function familyGroup(W, h) {
 function group(W, g) {
   const h = me(W), intro = `<p class="page-intro">${UI.subtitles[g]}</p>`;
   if (g === 'family') return familyGroup(W, h);
-  if (g === 'know') return research(W, h);
+  if (g === 'know') return realmTabs(g) + research(W, h);
 
   if (g === 'goys') return realmTabs(g) + intro + boxes(box(LABEL.folk, people(followers(W, h))), box('Loyal', `${loyalty(W, h)}%`, `Revolt risk below ${CFG.revoltAt}%`))
     + taxOptions(W) + actionSection(W, 'feast', true)
@@ -2888,7 +2891,7 @@ function group(W, g) {
     + actionSection(W, 'pact', true) + actionSection(W, 'unpact', !!pactsOf(W, h).length);
   const wars = W.wars.filter(w => w.a === h.id || w.b === h.id);
   return intro + feud(W) + boxes(box('Soldiers', soldiers(h)), box('Soldiers from allies', gold(allyAid(W, h) * 1000)), box('Prestige', Math.round(h.prestige)), box('Wars you are in', wars.length))
-    + (wars.length ? `<section class="fronts"><h3>${UI.activeWars}</h3>${rows(wars, w => front(W, h, w))}</section>` : state('shield', UI.noWars, ''))
+    + (wars.length ? `<section class="fronts"><h3>${UI.activeWars}</h3><p class="legend-note">Each war costs ${CFG.warCost * 100}% of your gold every year: about ${gold(warBill(W, h))} gold this year, against an income of ${gold(h.inc)}.</p>${rows(wars, w => front(W, h, w))}</section>` : state('shield', UI.noWars, ''))
     + rows([...(wars.length ? ['reinforce', 'assault', 'yield', 'peace'] : []), 'war', 'coup', 'purge', 'gift', 'slander', 'stir', 'press', 'bomb'], id => actionSection(W, id));
 }
 
@@ -2983,13 +2986,14 @@ function sheet(W, open, picking, back = false) {
     : kind === 'house' ? [`House ${esc(house(W, arg).name)}`, family(W, +arg)]
     : [UI.nav.world, world(W, arg)];
 
-  if (kind === 'group' && (arg === 'family' || arg === 'know')) {
-    const h = me(W), scholars = arg === 'know';
-    return `<div class="body concept-page ${scholars ? 'scholars-page' : 'family-page'}" data-page="${open}">
-      ${scholars ? realmTabs(arg) : ''}<header class="concept-heading"><div><h2 id="sheet-title">${name}</h2><p>${scholars ? REGIONS[h.seat].name : 'House ' + esc(h.name)}</p></div>
+  if (kind === 'group' && arg === 'family') {
+    return `<div class="body concept-page family-page" data-page="${open}">
+      <header class="concept-heading"><div><h2 id="sheet-title">${name}</h2><p>House ${esc(me(W).name)}</p></div>
       ${back ? `<button class="icon" data-go="back" aria-label="${UI.back}">${icon('back')}</button>` : ''}</header>${body}</div>`;
   }
-  return `<header><button class="icon" data-go="${back ? 'back' : 'close'}" aria-label="${back ? UI.back : UI.close}">${icon(back ? 'back' : 'close')}</button><h2 id="sheet-title">${name}</h2><span class="paused-label"${hint('Time paused')}>${icon('pause')}${UI.paused}</span></header><div class="body" data-page="${open}">${body}</div>`;
+  // Scholars keeps its own page styling but has the same header and tab bar as the other two Realm pages.
+  const look = kind === 'group' && arg === 'know' ? ' concept-page scholars-page' : '';
+  return `<header><button class="icon" data-go="${back ? 'back' : 'close'}" aria-label="${back ? UI.back : UI.close}">${icon(back ? 'back' : 'close')}</button><h2 id="sheet-title">${name}</h2><span class="paused-label"${hint('Time paused')}>${icon('pause')}${UI.paused}</span></header><div class="body${look}" data-page="${open}">${body}</div>`;
 }
 function housePreview(W, id) {
   const h = house(W, id);
