@@ -445,7 +445,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:23 PM ET · d0ecda0';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:40 PM ET · 1b6ba80';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -662,7 +662,8 @@ return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, 
 __m['js/data/regions.js'] = (() => {
 // The lands of year 0. pop: millions of people. know: the year of our history its knowledge matches.
 // room: how its share of the world's people shifts by our present day (1 = unchanged). seeds: [lon, lat] points
-// that claim the nearest land; the first seed is the capital.
+// that claim the nearest land; the first seed is the capital. Hawaiki, Kahiki and Pulotu are invented (the names are
+// homelands of Polynesian legend); every other land is real.
 const REGIONS = [
   { id: 'ita', name: 'Italia',        cul: 'latin',    pop: 14,  know: 0,     room: .12,  seeds: [[12.5,42], [15,38], [9,40], [10.5,45], [14,46], [16.5,44.5]] },
   { id: 'gal', name: 'Gaul',          cul: 'celtic',   pop: 7.5, know: -250,  room: .65,  seeds: [[2,47], [5,44], [-1.5,52.5], [-8,53], [-4,56.5]] },
@@ -694,15 +695,21 @@ const REGIONS = [
   { id: 'amz', name: 'Amazonia',      cul: 'tupi',     pop: 2,   know: -3000, room: 3.5,  seeds: [[-47,-16], [-60,-4], [-40,-8], [-62,6], [-52,-24]] },
   { id: 'pam', name: 'The Pampas',    cul: 'mapuche',  pop: .8,  know: -2500, room: 3.8,  seeds: [[-62,-36], [-66,-45], [-58,-30], [-69,-50]] },
   { id: 'aus', name: 'Sahul',         cul: 'sahul',    pop: .6,  know: -5000, room: 2.1,  seeds: [[146,-33], [134,-24], [120,-28], [142,-6], [174,-40], [146,-42]] },
+  // Invented lands in the Pacific. New lands go at the END of this list: a save stores lands by position, and
+  // migrate() in state.js adds whatever a save is missing.
+  { id: 'hwk', name: 'Hawaiki',       cul: 'moana',    pop: .5,  know: -1800, room: 3,    seeds: [[-145.2,26], [-149.2,24.8], [-140.4,27.6]] },
+  { id: 'khk', name: 'Kahiki',        cul: 'moana',    pop: .6,  know: -1500, room: 3,    seeds: [[-136,19.2], [-135.6,23.6], [-136,15.2]] },
+  { id: 'plt', name: 'Pulotu',        cul: 'moana',    pop: .4,  know: -2200, room: 3,    seeds: [[-146,15.2], [-149.2,19.6], [-142,18]] },
 ];
 // A land's name as it reads in the middle of a sentence: "in the Levant".
 const named = i => REGIONS[i].name.replace(/^The /, 'the ');
 const RID = Object.fromEntries(REGIONS.map((r, i) => [r.id, i]));
 
-// Sea lanes. near: sailed since antiquity. ocean: open once either shore's knowledge reaches CFG.oceanYear.
+// Sea lanes. Sahul is reached by island-hopping from Suvarnabhumi and across the Pacific from Pulotu, so it is not cut off
+// until the age of sail. near: sailed since antiquity. ocean: open once either shore's knowledge reaches CFG.oceanYear.
 const SEA = {
-  near: [['ita', 'mag'], ['ita', 'hel'], ['his', 'mag'], ['hel', 'egy'], ['ara', 'eaf'], ['ara', 'dec'], ['eaf', 'dec'], ['dec', 'sea'], ['yam', 'han'], ['yam', 'lin'], ['mes', 'and'], ['cub', 'mes'], ['cub', 'nam']],
-  ocean: [['his', 'mes'], ['his', 'cub'], ['his', 'amz'], ['gal', 'nam'], ['gal', 'kan'], ['waf', 'amz'], ['saf', 'dec'], ['sea', 'aus'], ['lin', 'aus'], ['yam', 'nam'], ['his', 'saf']],
+  near: [['ita', 'mag'], ['ita', 'hel'], ['his', 'mag'], ['hel', 'egy'], ['ara', 'eaf'], ['ara', 'dec'], ['eaf', 'dec'], ['dec', 'sea'], ['yam', 'han'], ['yam', 'lin'], ['mes', 'and'], ['cub', 'mes'], ['cub', 'nam'], ['sea', 'aus'], ['plt', 'aus']],
+  ocean: [['his', 'mes'], ['his', 'cub'], ['his', 'amz'], ['gal', 'nam'], ['gal', 'kan'], ['waf', 'amz'], ['saf', 'dec'], ['lin', 'aus'], ['yam', 'nam'], ['his', 'saf']],
 };
 
 return { REGIONS, named, RID, SEA };
@@ -737,6 +744,7 @@ const CULTURES = {
   taino:    C('Maguana Marien Jaragua Higuey Magua Baracoa Camaguey Bayamo Habana Borinquen', 'Guarionex Anacaona Hatuey Yuisa Caonabo Higuamota Guama Itiba Mayobanex Amayra Bohechio Guaynata Agueybana Yaya Arasibo Deminan Jumacao Orocobix Loquillo Mabo Urayoan Caguax Cotubanama Guacanagari'),
   mapuche:  C('Lafken Pikun Williche Pewen Nagche Wenteche Puelche Tehuel Rankul Chono', 'Lautaro Fresia Caupolican Guacolda Galvarino Janequeo Colocolo Millaray Pelantaro Rayen Nahuel Ayelen Lincoyan Sayen Antu Kuyen Lemu Ailin Manque Aukan Newen Suyai Pichun Liwen'),
   tupi:     C('Tupinamba Guarani Tamoio Carijo Potiguara Aimore Marajo Tapajo Omagua Xingu', 'Aruan Jaci Ubira Iara Cauan Potira Raoni Maiara Piata Anahi Ubirata Jurema Tiba Moema Peri Iracema Guaraci Yara Abaete Janaina Kaue Tainara Moacir Araci Apoena Bartira Cauby Cunha Ibere Jandira Jupi Kaiana Ruda Maira Ubajara Yaci'),
+  moana:    C('Kamakau Keawe Pomare Tupou Malietoa Kalani Tangaroa Hotu Teriki Makea', 'Kai Hina Mana Moana Tane Lani Maui Mele Rangi Tala Keoni Noelani Ikaika Leilani Kekoa Aroha Nalu Kalea Makoa Hoku Sione Losa Tavita Sina Manu Tiare Ariki Vaea Hotu Teuila Kaimana Pua Tama Whetu Nikau Ana'),
   sahul:    C('Yolngu Arrernte Noongar Wiradjuri Kulin Tiwi Tainui Arawa Ngati Palawa', 'Jarrah Kirra Bindi Yarran Marlee Tane Aroha Koa Mirri Wiremu Warrin Alinta Daku Lowanna Jedda Talia Bardo Merindah Mani Kaiya Hemi Ngaire Rangi Anahera Balun Allira Coen Elanora Ganan Jannali Mundara Kalinda Tarni Nerida Waru Yindi'),
 };
 
@@ -782,6 +790,7 @@ return { TECHS, MOON, OURS, MITIGATE, NATURE };
 })();
 __m['js/data/land.js'] = (() => {
 // Coastlines as flat [lon, lat, lon, lat, ...] polygons, hand-drawn at pixel-map fidelity. East and north are positive.
+// All of it is the real Earth except Hawaiki, at the end of the list.
 const LAND = [
   // Europe and Asia
   [-9,37, -9,43, -2,43.5, -1,46, -4.5,48.5, 2,51, 4,53, 8,54, 8,57, 10.5,57.5, 10,54, 14,54, 19,54.5, 21,57, 24,59.5, 30,60, 25,60, 21,61, 21,63, 25,65.5, 22,65.7, 17.5,62, 18,59.5, 16,56.5, 13,55.5, 11,58, 8,58, 5,60, 5,62, 10,64, 14,67, 20,70, 26,71, 31,70, 41,67, 40,64.5, 44,68, 55,68.5, 68,69, 70,73, 80,73, 88,75.5, 104,77.5, 113,74, 130,71, 140,72.5, 160,69.5, 170,70, 180,68.5, 179,64.5, 172,61, 164,59.5, 162,55, 157,51, 156,57, 157,61.5, 143,59, 135,54.5, 141,52, 140,48, 135,43.5, 132,43, 128,40, 129.5,37, 129,35, 126.5,34.5, 126,37.5, 125,39.5, 121.5,39, 122,40.5, 118,39, 119,37.5, 122.5,37, 119.5,35, 121,32, 122,30, 120,27.5, 118,24.5, 114,22.5, 110,21, 108.5,21.5, 106,19, 108.5,15.5, 109.3,12, 106.5,10, 105,8.7, 104.5,10.5, 102.5,12, 100.5,13.5, 99.5,10, 103.5,1.5, 101.5,2.5, 100.3,6, 98.3,8.5, 98.5,12, 97.5,16.5, 94.5,16, 92,21.5, 91,22.5, 88,21.7, 86.5,20, 82,16.5, 80.2,13, 79.8,10.3, 77.5,8, 76,10, 74.8,13, 73,17, 72.8,19, 72.5,21.5, 70,21, 69,22.5, 67,24.5, 62,25.2, 57.5,25.5, 56.5,27, 52,27.5, 50,30, 48,30, 48.5,28.5, 50,26.5, 51.5,25, 54,24, 56.3,26, 58.8,23.5, 59.8,22.4, 58,19, 55,17, 52,16, 45,12.8, 43.3,12.7, 42.7,16, 39,21.5, 35,28, 34.5,28, 32.5,30, 34.3,31.3, 35.8,34.5, 36,36.8, 33,36, 30.5,36.5, 27.5,37, 26.3,39.5, 26.7,40.4, 29,41, 33,42, 36,41.5, 41.5,41.5, 41,43, 37,45, 39,47, 35,45, 33.5,46, 30.5,46.5, 28.5,44, 28,41.5, 26,41, 23.5,40.5, 22.5,38, 24,38, 23,36.5, 21.5,37, 19.5,40.5, 19,42, 15,44.5, 13.5,45.7, 12.3,45.2, 12.5,44, 14,42.3, 16,41.8, 18.5,40.2, 17,40.5, 16.5,39, 16,38, 15.8,39.8, 14.2,40.8, 12.2,41.8, 10.5,43, 8.8,44.4, 7.3,43.7, 3.2,43.2, 3.2,42, .3,40, -.5,38, -2,36.8, -5.3,36.2, -6.5,37],
@@ -811,6 +820,9 @@ const LAND = [
   [-80,73, -72,71, -62,66.5, -65,62.5, -72,63.5, -78,65, -73,68, -85,70, -88,73.5], [-117,72, -105,73, -102,69.5, -115,69.5], // Baffin, Victoria
   [144.7,-40.8, 148.2,-40.8, 148,-43.2, 146,-43.5, 145.2,-42.5],                                                          // Tasmania
   [172.7,-34.5, 176,-37.5, 178.5,-37.7, 176.8,-40.5, 174.9,-41.5, 173.8,-39.2, 174.7,-37], [172.7,-40.6, 174.3,-41.8, 171.2,-44.5, 168.5,-46.7, 166.5,-45.8, 170.5,-42.8], // New Zealand
+  // Hawaiki: an invented land in the open Pacific, joined to the coast of North America by a narrow neck of land
+  [-148.4,28, -145.6,30, -142,29.2, -140,30, -136.4,28, -133.6,25.6, -132,22.4, -133.6,20.4, -132.4,17.6, -134.8,14, -138.4,12.4, -140.4,14, -143.2,10.4, -146.8,11.2, -149.6,14, -148.4,16.8, -152,18.8, -152.8,22.4, -150,24, -151.2,26.4],
+  [-122.5,37.5, -120,34.5, -132.5,24.5, -135.5,27.5],
 ];
 const ICE = [[-73,78.5, -60,82, -30,83.5, -18,80, -20,74, -22,70, -32,68, -40,65, -43,60, -48,61, -53,66.5, -54,70, -58,75.5, -68,76]]; // Greenland
 const LAKES = [[47,45, 51,47, 53.5,46, 53,42, 54,39, 53.5,37, 50,37, 49,39, 47.5,42]];                                               // Caspian Sea
@@ -1049,24 +1061,35 @@ function bury(W, h) {
 }
 
 /* ---------- the world ---------- */
+// Adds land i to the world as it stands in year 0, with its houses. Returns the houses.
+function settle(W, i) {
+  const R = REGIONS[i], first = W.houses.length;
+  const r = W.regions[i] = { i, pop: R.pop, know: R.know, lit: curve(OURS.lit, R.know), wealth: curve(OURS.wealth, R.know), waste: 0,
+    ruler: -1, republic: false, since: W.year, shares: {}, works: { farms: 0, schools: 0, roads: 0 }, plague: null, immune: [] };
+  const cuts = Array.from({ length: 3 + chance(W, .6) + chance(W, .25) }, (_, k) => (k ? .5 : 1.2) + rnd(W)), all = sum(cuts, c => c);
+  cuts.forEach((c, k) => {
+    const h = newHouse(W, r, { prestige: k ? 10 : 25 });
+    r.shares[h.id] = { s: c / all, loy: 55 + rnd(W) * 15, favor: 0 };
+    if (!k) r.ruler = h.id;
+  });
+  return W.houses.slice(first);
+}
+// Brings an older save up to the current map: lands added to the end of REGIONS since it was made are settled now.
+function migrate(W) {
+  const fresh = [];
+  for (let i = W.regions.length; i < REGIONS.length; i++) fresh.push(...settle(W, i));
+  if (!fresh.length) return;
+  refresh(W);
+  for (const h of fresh) h.gold = h.inc * 3;
+}
+
 function createWorld(seed, rules = {}) {
   const W = {
     v: 2, seed, rng: seed | 0, year: START, rules, player: -1, ambition: null,
     houses: [], wars: [], pacts: [], trade: [], log: [], annals: [], eras: [], chron: [], cards: [],
-    firsts: {}, plagues: {}, council: { aim: 'science', seat: false, asked: false, gone: false }, tally: { wars: 0, dead: 0, thrones: 0, bombs: 0 },
+    regions: [], firsts: {}, plagues: {}, council: { aim: 'science', seat: false, asked: false, gone: false }, tally: { wars: 0, dead: 0, thrones: 0, bombs: 0 },
   };
-  W.regions = REGIONS.map((R, i) => ({
-    i, pop: R.pop, know: R.know, lit: curve(OURS.lit, R.know), wealth: curve(OURS.wealth, R.know), waste: 0,
-    ruler: -1, republic: false, since: START, shares: {}, works: { farms: 0, schools: 0, roads: 0 }, plague: null, immune: [],
-  }));
-  for (const r of W.regions) {
-    const cuts = Array.from({ length: 3 + chance(W, .6) + chance(W, .25) }, (_, k) => (k ? .5 : 1.2) + rnd(W)), all = sum(cuts, c => c);
-    cuts.forEach((c, k) => {
-      const h = newHouse(W, r, { prestige: k ? 10 : 25 });
-      r.shares[h.id] = { s: c / all, loy: 55 + rnd(W) * 15, favor: 0 };
-      if (!k) r.ruler = h.id;
-    });
-  }
+  REGIONS.forEach((R, i) => settle(W, i));
   refresh(W);
   for (const h of W.houses) h.gold = h.inc * 3;
   return W;
@@ -1116,7 +1139,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -3036,7 +3059,7 @@ __m['js/main.js'] = (() => {
 // Wires the simulation to the screen: the game loop, input, and saving.
 const { CFG, GUIDE, RULES, LABEL, UI } = __m['js/config.js'];
 const { REGIONS, RID } = __m['js/data/regions.js'];
-const { createWorld, takeHouse, foundHouse, house, refresh } = __m['js/sim/state.js'];
+const { createWorld, takeHouse, foundHouse, house, refresh, migrate } = __m['js/sim/state.js'];
 const { stepYear, tellThrones } = __m['js/sim/step.js'];
 const { ACTIONS, perform } = __m['js/sim/actions.js'];
 const { nextCard, answer, witness } = __m['js/sim/cards.js'];
@@ -3181,7 +3204,7 @@ function tapLand(i) {
 
 const GO = {
   new() { readThrough = null; G.W = createWorld(Date.now() % 1e9, Object.fromEntries(Object.keys(RULES).map(k => [k, $(`rule-${k}`).checked]))); G.phase = 'pick'; G.watching = false; G.panels = {}; G.history = []; G.look = null; G.realm = 'group:goys'; },
-  resume() { G.W = store.load(); readThrough = restoreInbox(G.W); refresh(G.W); G.phase = 'play'; G.paused = true; map.focus(house(G.W, G.W.player).seat); },
+  resume() { G.W = store.load(); migrate(G.W); readThrough = restoreInbox(G.W); refresh(G.W); G.phase = 'play'; G.paused = true; map.focus(house(G.W, G.W.player).seat); },
   lead(id) { G.pick = +id; G.phase = 'ambition'; G.open = null; },
   found(i) { G.pick = foundHouse(G.W, G.W.regions[i], $('newName').value.trim() || 'Nameless', $('newTrait').value).id; G.phase = 'ambition'; G.open = null; },
   amb(k) {
@@ -3283,7 +3306,7 @@ requestAnimationFrame(function frame(now) {
 if (store.load()) GO.resume(); else map.focus(RID.lev);    // a saved game opens straight back up
 render();
 initTips();
-window.houses = { G, stepYear, render };   // handle for tests and the browser console
+window.houses = { G, stepYear, render, map };   // handle for tests and the browser console
 
 return {  };
 })();
