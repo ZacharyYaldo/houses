@@ -387,6 +387,10 @@ summary::-webkit-details-marker { display:none; }
 .picking #sheet { top:46%; bottom:env(safe-area-inset-bottom); border-top:2px solid var(--gold); border-radius:14px 14px 0 0; box-shadow:0 -8px 24px #000a; }
 .picking.panel-open #stage { visibility:visible; }
 .picking.panel-open #news { display:block; }
+.card { position:relative; }
+.card-corner { position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:6px; color:var(--dim); font:600 12px var(--body); font-variant-numeric:tabular-nums; }
+.card-corner .icon { width:34px; height:34px; border:0; background:none; }
+#sheet .body>.tabs { position:sticky; top:-4px; z-index:2; box-shadow:0 6px 12px -4px #000c; }   /* Realm and World tabs stay in reach while the page scrolls */
 </style>
 </head>
 <body>
@@ -410,7 +414,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 25, 2026, 1:31 PM ET · 00360af';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 10:07 AM ET · 679a6a9';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -520,6 +524,45 @@ const TIPS = {
 
 
 // Mobile interface copy. Presentation state stays in G; these labels do not change the save schema.
+// Tutorials: short screens shown in order the first time the player reaches each part of the game.
+// `start` opens a new game; the other keys are the page that triggers them.
+const GUIDE = {
+  start: [
+    ['Time', 'Press Play to let the years run. Time stops whenever a page or popup is open.'],
+    ['The globe', 'Drag to turn it, pinch to zoom. Tap a land to see who holds it. The gold outline is what you rule.'],
+    ['Your goal', 'Take thrones by marriage, plot or war, and chase the ambition you chose. Each tab explains itself when you first open it.'],
+  ],
+  family: [
+    ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
+    ['No heir', 'If the head dies with no living child, a cousin carries on and your prestige is halved.'],
+    ['Marriages', 'Marry a child aged 16 or older into another house. That house becomes an ally and lends soldiers in your wars.'],
+  ],
+  goys: [
+    [`Your ${LABEL.folk}`, `Your income is the tax your ${LABEL.folk} pay. Raise it and you earn more now, but they grow less loyal and may leave you or revolt.`],
+    ['Building', 'Farms feed more people, schools speed up learning, roads open more trade routes. Each level costs more than the last.'],
+  ],
+  trade: [
+    ['Trade routes', 'A route pays you and your partner every year. Richer partners pay more.'],
+    ['Limited routes', 'You can hold only a few routes. Close a poor one to make room for a better one.'],
+  ],
+  know: [
+    ['Knowledge', 'Your seat\'s knowledge is counted as a year of real history. Schools, funding and trade raise it faster.'],
+    ['Discoveries', 'Each discovery unlocks something: more building levels, more routes or new actions.'],
+  ],
+  power: [
+    ['War', 'March on a neighbouring land to take its throne. Compare soldiers first. Houses tied to you by marriage add theirs.'],
+    ['Plots', 'Slander a house, stir up its followers, seize a throne from inside, or drive a house out of a land you rule.'],
+    ['Costs', 'Every move shows its price and what it does before you choose. A greyed-out move says why.'],
+  ],
+  world: [
+    ['The world', 'See how every house ranks, how your world compares with real history, and the record of what has happened.'],
+  ],
+  land: [
+    ['A land', 'Each house here is listed with its share of the people and how loyal they are. The ruler holds the throne.'],
+    ['Your moves', 'Anything you can do in this land is listed at the bottom of its page.'],
+  ],
+};
+
 const UI = {
   nav: { map: 'Map', family: 'Family', realm: 'Realm', power: 'Power', world: 'World' },
   worldTabs: { standing: 'Houses', ours: 'History', annals: 'Chronicle' },
@@ -559,7 +602,7 @@ Object.assign(TIPS, {
   'Time paused': 'Management panels and decisions stop the clock. Return to the map and press Play to continue.',
 });
 
-return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, UI };
+return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, GUIDE, UI };
 })();
 __m['js/data/regions.js'] = (() => {
 // The lands of year 0. pop: millions of people. know: the year of our history its knowledge matches.
@@ -1871,7 +1914,7 @@ return { stepYear, tellThrones };
 __m['js/sim/cards.js'] = (() => {
 // Decisions that interrupt the player. Each type builds { title, text, who, opts: [{ label, hint, bar, run }] } from saved
 // card data, or returns null once the moment has passed. who names the house the card is about, so its stats can be shown.
-const { LABEL, TAXES } = __m['js/config.js'];
+const { GUIDE, LABEL, TAXES } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { NATURE } = __m['js/data/history.js'];
 const { gold } = __m['js/sim/util.js'];
@@ -1886,6 +1929,12 @@ const pay = (W, n) => ({ bar: me(W).gold < n, hint: `Costs ${gold(n)} gold` });
 const CARDS = {
   story: (W, c) => (STORIES[c.k].ok(W, me(W), W.rival && !house(W, W.rival.id).dead ? house(W, W.rival.id) : null) ? STORIES[c.k].view(W, c) : null),
   news: (W, c) => ({ title: c.title, text: c.txt, opts: [{ label: 'Carry on' }] }),
+  // One tutorial screen. `step` is shown as n/total and the `corner` option is drawn as an X that skips the rest.
+  guide(W, c) {
+    const pages = GUIDE[c.k], last = c.i === pages.length - 1;
+    return { title: pages[c.i][0], text: pages[c.i][1], step: [c.i + 1, pages.length], corner: 1,
+      opts: [{ label: last ? 'Got it' : 'Next', run: () => last || W.cards.unshift({ type: 'guide', k: c.k, i: c.i + 1 }) }, { label: 'Skip' }] };
+  },
   offer(W, c) {
     const from = house(W, c.from), a = ACTIONS[c.act], wedding = c.act === 'marry';
     if (from.dead || a.why(W, from, me(W))) return null;
@@ -2564,8 +2613,9 @@ function card(W, v, peek) {
   const text = o ? esc(v.text).replace(name, `<button class="text-link" data-go="peek">${name}</button> (${REGIONS[o.seat].name})`) : esc(v.text);   // name the house's home land once
   const stats = o && peek ? boxes(headBox(W, o), box('Gold', gold(o.gold), `+${gold(o.inc)} a year`), box('Soldiers', soldiers(o)), box('Thrones', o.thrones), box('World rank', `#${rankOf(W, o)}`))
     + `<p>Seat: ${REGIONS[o.seat].name}. ${TRAITS[o.head.t].blurb} Their opinion of you is ${opinion(o, me(W))}, from -100 to 100.</p>` : '';
-  return `<h2>${esc(v.title)}</h2><p>${text}</p>${stats}
-    ${rows(v.opts, (opt, i) => `<button class="pick" data-go="card:${i}" ${opt.bar ? 'disabled' : ''}><b>${opt.label}</b>${esc(opt.hint ?? '')}</button>`)}`;
+  const corner = v.step ? `<div class="card-corner"><span>${v.step.join('/')}</span><button class="icon" data-go="card:${v.corner}" aria-label="${v.opts[v.corner].label}">${icon('close')}</button></div>` : '';
+  return `${corner}<h2>${esc(v.title)}</h2><p>${text}</p>${stats}
+    ${rows(v.opts, (opt, i) => (i === v.corner ? '' : `<button class="pick" data-go="card:${i}" ${opt.bar ? 'disabled' : ''}><b>${opt.label}</b>${esc(opt.hint ?? '')}</button>`))}`;
 }
 
 function era(W) {
@@ -2601,7 +2651,7 @@ return { hud, mine, bar, affordable, sheet, housePreview, title, ambitions, card
 })();
 __m['js/main.js'] = (() => {
 // Wires the simulation to the screen: the game loop, input, and saving.
-const { CFG, RULES, LABEL, UI } = __m['js/config.js'];
+const { CFG, GUIDE, RULES, LABEL, UI } = __m['js/config.js'];
 const { RID } = __m['js/data/regions.js'];
 const { createWorld, takeHouse, foundHouse, house, refresh } = __m['js/sim/state.js'];
 const { stepYear, tellThrones } = __m['js/sim/step.js'];
@@ -2615,9 +2665,6 @@ const { affordable, hud, mine, bar, sheet, title, ambitions, card, era, end, hou
 
 const SAVE = 'houses.save', MUSIC = 'houses.music';
 const NO_SAVE = 'This window cannot keep a save. Open the game file directly in Chrome, Edge or Safari and your game will be there when you come back.';
-const HELP = `Time runs by itself and stops while a panel is open. Use Family for your bloodline, Realm for ${LABEL.folk}, Trade and Scholars, and Power for wars and politics. Return to the map and press Play to continue, `
-  + `and tap any land to see who holds it. Your income is the tax your ${LABEL.folk} pay, so squeeze them and they leave you or revolt. `
-  + `Take thrones by marriage, plot or war. Drag the globe to turn it. The gold outline marks what you rule.`;
 // phase: title -> pick (choose a land and house) -> ambition -> play
 const G = { W: createWorld(1), phase: 'title', paused: true, speed: 0, open: null, sel: -1, pick: -1, due: 0, saved: 0, said: '', watching: false, muted: false, peek: false, look: null, history: [], panels: {}, realm: 'group:goys' };
 const map = createMap($('map'), tapLand), music = $('music');
@@ -2696,8 +2743,17 @@ function navigate(open, root = false) {
   if (open) G.paused = true;
 }
 
+// The tutorial for a part of the game, queued the first time the player reaches it. W.taught travels with the save.
+const lesson = open => (open.startsWith('world:') ? 'world' : open.startsWith('region:') ? 'land' : open.startsWith('group:') ? open.slice(6) : '');
+function teach(k) {
+  const seen = G.W.taught ??= {};
+  if (!GUIDE[k] || seen[k]) return;
+  seen[k] = 1; G.W.cards.unshift({ type: 'guide', k, i: 0 });
+}
+
 function render() {
   rememberPanel();
+  if (G.phase === 'play' && G.open && !G.W.over) teach(lesson(G.open));
   const W = G.W, playing = G.phase === 'play', m = modal();
   const active = document.activeElement, focusKey = G.returnFocus || (active?.dataset.go ? `[data-go="${active.dataset.go}"]` : active?.dataset.open ? `[data-open="${active.dataset.open}"]` : null);
   G.returnFocus = null;
@@ -2746,7 +2802,7 @@ const GO = {
   found(i) { G.pick = foundHouse(G.W, G.W.regions[i], $('newName').value.trim() || 'Nameless', $('newTrait').value).id; G.phase = 'ambition'; G.open = null; },
   amb(k) {
     takeHouse(G.W, G.pick, k); G.phase = 'play'; G.paused = true; G.sel = -1;
-    G.W.cards.push({ type: 'news', title: 'How to lead a house', txt: HELP });
+    teach('start');
     map.focus(house(G.W, G.pick).seat);
   },
   pause() { if (G.open) { GO.close(); G.paused = false; } else G.paused = !G.paused; },
