@@ -418,6 +418,8 @@ button.off { opacity:.5; }
 .child>small.doing { color:#8fd9a6; } .child>small.bad { color:var(--bad); }
 .post.empty { border-color:#74513d; background:#2c212a; }
 .notes small { text-transform:none; letter-spacing:0; font-weight:400; }
+.side { font:700 10.5px var(--body); letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:#2a3d57; color:#cfe0f5; } .side.for { background:#2f6b4c; color:#eafff0; } .side.against { background:#6b2a2a; color:#ffd6cf; }
+summary small.bad { color:var(--bad); }
 .land-list .mood { display:flex; flex-wrap:wrap; gap:4px 6px; grid-column:1/-1; margin-top:4px; text-transform:none; letter-spacing:0; font-weight:500; }
 .land-list .mood i { font-style:normal; font-size:11.5px; padding:2px 6px; border-radius:5px; background:#17382a; color:#9fe0b3; } .land-list .mood i.down { background:#3a2020; color:#f0b0a3; }
 .action-section>.legend-note { margin:10px 12px; }
@@ -446,7 +448,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 6:38 PM ET · f870312';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 6:46 PM ET · a1ee4e1';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -514,6 +516,10 @@ const CFG = {
   // The ledger. warm: the opinion at which a house agrees to an ask without owing you; keep: years a favour is remembered;
   // call: yearly chance a house collects a favour you owe, no sooner than gap years after the last; snub: what refusing costs with every house of your seat.
   ledger: { warm: 20, keep: 40, call: .08, gap: 8, snub: 10, honour: 20 },
+  // A succession. Below `safe` support it is disputed; below `war` a refusal means civil war. cold: the opinion at which an
+  // unpledged house stands against the heir; payoff: the price in action units; minor: an heir younger than this invites a regent;
+  // passed: where a brother or sister abler than the heir starts out.
+  contest: { safe: .6, war: .4, cold: -10, payoff: 4, minor: 21, passed: 45 },
   court: { sour: -30, steward: .5, vacant: 1, thanks: 20, grudge: 30 },   // sour: a house thinking this little of the ruler withholds; vacant: an empty holding counts this much against
   split: { base: .04, per: .012, ability: .006, cap: .3, most: 3 },
   commanderRisk: .03, restless: .12,   // yearly chance a commander dies at war; added chance a far land breaks away under a passed-over governor
@@ -636,6 +642,7 @@ const GUIDE = {
     ['Marriages', 'Marry a child aged 16 or older into another house. That house becomes an ally and lends soldiers in your wars.'],
     ['Far lands', 'When a head dies, lands away from your seat may break away under a cousin. Loyal lands and an able heir make it far less likely.'],
     ['Jobs and tutors', 'Give a grown child a job: governor, commander, scholar or envoy. Pay a tutor to try to raise a child\'s ability.'],
+    ['A disputed succession', 'The houses of your seat and your grown relatives each stand for or against your heir. With under 60% behind the heir, the strongest voice against names a price when you die. Under 40%, refusing it means civil war.'],
     ['Relatives', 'When a head dies, the heir\'s grown brothers and sisters stay at court. Each wants something. Give it and they serve you well; pass them over for years and they leave, taking followers with them.'],
   ],
   goys: [
@@ -1231,11 +1238,11 @@ return { house, alive, ruled, holds, locals, is, ability, household, relative, b
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
-const { CFG, WANTS } = __m['js/config.js'];
+const { CFG, WANTS, JOBS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { OURS } = __m['js/data/history.js'];
-const { rnd, chance, clamp, curve, maxBy, pct } = __m['js/sim/util.js'];
-const { alive, holds, ruled, tied, sway, note, newPerson, newHouse, enthrone, moveShare, dropShare, setRuler, bury, routeCap, household, relative } = __m['js/sim/state.js'];
+const { rnd, chance, clamp, curve, maxBy, sum, pct } = __m['js/sim/util.js'];
+const { alive, holds, ruled, tied, sway, note, newPerson, newHouse, enthrone, moveShare, dropShare, setRuler, bury, routeCap, household, relative, locals, opinion, atWar, grudge, pledged } = __m['js/sim/state.js'];
 
 const age = (W, p) => W.year - p.b;
 const grown = (W, h) => h.kids.filter(k => age(W, k) >= CFG.adult);
@@ -1296,12 +1303,17 @@ function stepCourt(W, h) {
     else if (x.loy < CFG.kin.bitter && seat.shares[h.id] && chance(W, CFG.kin.leave)) leave(W, h, x, seat);
   }
 }
-function leave(W, h, x, seat) {
+// Relative x walks out and founds a house in the seat with part of the following (`times` the usual share). Returns the house.
+function depart(W, h, x, seat, times = 1) {
   const b = newHouse(W, seat, { cul: h.cul, parent: h.id, prestige: h.prestige * .3 });
   b.head = { n: x.n, b: x.b, t: x.t, a: x.a };
   h.kin = h.kin.filter(k => k !== x);
-  moveShare(seat, h.id, b.id, takes(x.a));
+  moveShare(seat, h.id, b.id, takes(x.a) * times);
   sway(b, h, -50);
+  return b;
+}
+function leave(W, h, x, seat) {
+  const b = depart(W, h, x, seat);
   note(W, `${x.n}, passed over for years, leaves House ${h.name} and founds House ${b.name} in ${named(seat.i)}.`, { h: h.id, x: b.id, r: seat.i, w: 1 });
   W.cards.push({ type: 'news', title: 'A relative leaves', txt: `${x.n} wanted ${WANTS[x.want].text}, and got nothing for years. They have founded House ${b.name} in ${named(seat.i)} and taken ${pct(takes(x.a))} of your following there with them.` });
 }
@@ -1313,14 +1325,42 @@ function succeed(W, h, how) {
   const restless = h.kids.some(k => k.job === 'governor' && k !== heir);
   h.head = { n: heir.n, b: heir.b, t: heir.t, a: heir.a };
   // The heir's grown brothers and sisters stay at court as relatives. Those with work always stay; the ablest of the rest fill the room left.
-  const stay = mine ? [...h.kin, ...h.kids.filter(k => k !== heir && age(W, k) >= CFG.adult).map(relative)] : [], busy = stay.filter(x => x.job || x.runs);
+  const sibs = mine ? h.kids.filter(k => k !== heir && age(W, k) >= CFG.adult).map(relative) : [];
+  for (const x of sibs) if (x.a > heir.a) x.loy = CFG.contest.passed;   // the abler ones feel passed over from the first day
+  const stay = [...h.kin, ...sibs], busy = stay.filter(x => x.job || x.runs);
   h.kin = [...busy, ...stay.filter(x => !busy.includes(x)).sort((a, b) => b.a - a.a).slice(0, Math.max(0, CFG.kin.most - busy.length))];
   h.kids = [];                                             // one at a time, so each new name is checked against the last
   for (let n = Math.min(3, Math.floor((clamp(age(W, heir), 18, 48) - 18) / 8)); n > 0; n--) h.kids.push(newPerson(W, h.cul, W.year - Math.floor(rnd(W) * 14), h.head, h));
   enthrone(W, h);
   note(W, `${old.n} of House ${h.name} ${how}. ${heir.n} the ${heir.t} now leads.`, { h: h.id, r: h.seat, w: 0 });
   if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}. The family is now ${heir.n}'s own children (${h.kids.length})${h.kin.length ? `, with ${h.kin.length} relative${h.kin.length === 1 ? '' : 's'} at court, each wanting something from the new head` : ''}.${routeCap(W, h) === routes ? '' : ` Your limit on trade routes goes from ${routes} to ${routeCap(W, h)}, because a Merchant head adds 2.`}` });
+  if (mine) dispute(W, h);
   breakAway(W, h, restless);
+}
+
+// Who has a say when the head dies, and where each stands on `heir`: for (1), against (-1) or undecided (0), each with a
+// weight. A house weighs by its following in the seat, what it runs and the posts it holds; a relative by ability and work.
+function voices(W, h, heir = heirOf(W, h)) {
+  const seat = W.regions[h.seat], own = seat.shares[h.id], lean = heir.a >= 7 ? 1 : heir.a <= 3 ? -1 : 0;   // the undecided follow an able heir and shun a weak one
+  const houses = locals(W, seat).filter(o => o !== h).map(o => ({ o, name: `House ${o.name}`,
+    w: seat.shares[o.id].s * 100 + 5 * (seat.shares[o.id].runs?.length ?? 0) + 10 * Object.values(h.given ?? {}).filter(id => id === o.id).length,
+    side: pledged(W, o, h, 'heir') ? 1 : grudge(W, o, h) || atWar(W, o, h) ? -1 : opinion(o, h) >= CFG.ledger.warm ? 1 : opinion(o, h) <= CFG.contest.cold ? -1 : lean }));
+  const kin = [...h.kin, ...h.kids].filter(x => x.n !== heir.n && age(W, x) >= CFG.adult).map(x => ({ x, name: x.n, w: 2 * x.a + (x.job ? 10 : 0) + (x.runs ? 5 : 0),
+    side: x.loy === undefined ? (x.a > heir.a ? -1 : 1) : temper(x) === 'Content' ? 1 : temper(x) === 'Bitter' || x.a > heir.a ? -1 : lean }));
+  return [{ name: 'Your own followers', w: own ? own.s * own.loy : 0, side: 1 }, ...houses, ...kin];
+}
+// The share of the court's weight, among those who have taken a side, that stands behind the heir.
+function support(v) {
+  const yes = sum(v.filter(x => x.side > 0), x => x.w), no = sum(v.filter(x => x.side < 0), x => x.w);
+  return yes + no ? yes / (yes + no) : 1;
+}
+// A disputed succession. With too little of the court behind the new head, the strongest voice against names its price:
+// a post, the regency (a relative abler than the head, or a head not yet of age), or gold. The card does the rest.
+function dispute(W, h) {
+  const v = voices(W, h, h.head), s = support(v), foe = maxBy(v.filter(x => x.side < 0), x => x.w), open = Object.keys(JOBS).find(k => !h.given?.[k]);
+  if (W.regions[h.seat].ruler !== h.id || s >= CFG.contest.safe || !foe) return;
+  const x = foe.x, regent = x && (x.a > h.head.a || age(W, h.head) < CFG.contest.minor), post = x ? (JOBS[x.want] && x.job !== x.want ? x.want : null) : Object.values(h.given ?? {}).includes(foe.o.id) ? null : open;
+  W.cards.push({ type: 'contest', o: foe.o?.id, x: x?.n, s, ask: regent ? 'regency' : post ? 'office' : 'payoff', k: regent ? 'governor' : post });
 }
 
 // No child lives. A house joined by marriage inherits; failing that a cousin may carry the name, or the house ends.
@@ -1383,7 +1423,7 @@ function wed(W, a, b) {
   note(W, `House ${a.name} and House ${b.name} are joined by marriage.`, { h: a.id, x: b.id, r: a.seat });
 }
 
-return { grown, adults, unwed, heirOf, heirLine, lose, stepFamily, served, temper, takes, succeed, splitOdds, splitRisk, wed };
+return { grown, adults, unwed, heirOf, heirLine, lose, stepFamily, served, temper, takes, depart, succeed, voices, support, splitOdds, splitRisk, wed };
 })();
 __m['js/sim/nature.js'] = (() => {
 // Nature keeps our world's calendar: the same eruptions and plagues, in the same years.
@@ -2514,13 +2554,13 @@ return { stepYear, tellThrones };
 __m['js/sim/cards.js'] = (() => {
 // Decisions that interrupt the player. Each type builds { title, text, who, opts: [{ label, hint, bar, run }] } from saved
 // card data, or returns null once the moment has passed. who names the house the card is about, so its stats can be shown.
-const { CFG, GUIDE, LABEL, TAXES } = __m['js/config.js'];
+const { CFG, GUIDE, LABEL, TAXES, JOBS, ASKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { NATURE } = __m['js/data/history.js'];
-const { gold } = __m['js/sim/util.js'];
-const { house, holds, alive, locals, tied, opinion, sway, note, fullName, unit, owes } = __m['js/sim/state.js'];
-const { drop, grieve } = __m['js/sim/court.js'];
-const { heirOf } = __m['js/sim/family.js'];
+const { gold, pct } = __m['js/sim/util.js'];
+const { house, holds, alive, locals, tied, opinion, sway, note, fullName, unit, owes, household, relative } = __m['js/sim/state.js'];
+const { drop, grieve, pledge } = __m['js/sim/court.js'];
+const { heirOf, depart } = __m['js/sim/family.js'];
 const { GOALS, goalReward } = __m['js/sim/goals.js'];
 const { ACTIONS } = __m['js/sim/actions.js'];
 const { startWar } = __m['js/sim/conflict.js'];
@@ -2563,6 +2603,36 @@ const CARDS = {
         { label: 'Pay the tribute', ...pay(W, fee), run() { me(W).gold -= fee; from.gold += fee; me(W).prestige = Math.max(0, me(W).prestige - 4); } },
         { label: 'Refuse', hint: `They will march: their ${gold(from.levy * 1000)} soldiers against your ${gold(me(W).levy * 1000)}`, run: () => startWar(W, from, r) },
       ],
+    };
+  },
+  // A disputed succession (see dispute() in family.js): the strongest voice against the new head names a price.
+  contest(W, c) {
+    const h = me(W), seat = W.regions[h.seat], o = c.o === undefined ? null : house(W, c.o), x = h.kin.find(k => k.n === c.x);
+    if (seat.ruler !== h.id || (o ? o.dead || !seat.shares[o.id] : !x)) return null;
+    const who = o ? `House ${o.name}` : x.n, fee = Math.ceil(unit(h) * CFG.contest.payoff), war = c.s < CFG.contest.war, post = c.k && JOBS[c.k].name.toLowerCase();
+    const calm = () => { if (!o) return void (x.loy = 75); drop(W, o, h, 'grievance'); sway(o, h, 20); pledge(W, o, h, 'heir', ASKS.heir.years); };
+    const appoint = k => { for (const p of household(h)) if (p.job === k || p === x) delete p.job; if (o) ACTIONS.office.run(W, h, { k, o }); else { if (h.given?.[k]) ACTIONS.office.run(W, h, { k, o: house(W, h.given[k]) }); x.job = k; } };
+    return {
+      title: 'The succession is disputed', who: o?.id,
+      text: `Only ${pct(c.s)} of your court stands behind ${h.head.n}. ${who}, the strongest voice against, ${c.ask === 'regency' ? `says ${h.head.n} is not fit to lead alone and asks to govern in their name` : c.ask === 'office' ? `will accept ${h.head.n} for the post of ${post}` : `will accept ${h.head.n} for ${gold(fee)} gold`}.`,
+      opts: [
+        c.ask === 'regency' && { label: `Let ${who} govern`, hint: `${who} becomes governor and draws a stipend of ${CFG.kin.stipend * 100}% of your income`, run() { appoint('governor'); x.paid = true; calm(); } },
+        c.ask === 'office' && { label: `Give ${who} the post`, hint: `${who} becomes your ${post}, whoever holds it now`, run() { appoint(c.k); calm(); } },
+        { label: `Pay ${who} off`, ...pay(W, fee), run() { h.gold -= fee; if (o) o.gold += fee; calm(); } },
+        x && { label: `Stand aside for ${who}`, hint: `${who} leads the house and ${h.head.n} stays at court as a relative. You lose a tenth of your prestige`,
+          run() {
+            const old = h.head;
+            h.head = { n: x.n, b: x.b, t: x.t, a: x.a }; h.kids = []; h.prestige *= .9;
+            h.kin = [...h.kin.filter(k => k !== x), Object.assign(relative({ ...old }), { loy: CFG.contest.passed })];
+            Object.assign(W.chron.at(-1), { n: x.n, t: x.t, a: x.a });
+            note(W, `${old.n} stands aside. ${x.n} the ${x.t} now leads House ${h.name}.`, { h: h.id, r: h.seat, w: 1 });
+          } },
+        { label: 'Refuse', hint: war ? `${who} will rise against you in ${named(seat.i)}` : o ? `${who} will hold a grievance and withhold what it runs` : `${who} will turn bitter and may leave with followers`,
+          run() {
+            if (o) grieve(W, o, h, 'Refused its price at the succession'); else x.loy = 10;
+            if (war) startWar(W, o ?? depart(W, h, x, seat, 2), seat, 'civil');
+          } },
+      ].filter(Boolean),
     };
   },
   // A house the player owes a favour comes to collect. Paying settles it; refusing is remembered by the whole seat.
@@ -2658,7 +2728,7 @@ function witness(W, title, run, who, chose) {
   return true;
 }
 
-const WEIGHTY = ['story', 'offer', 'demand', 'favour'];             // card types whose outcome gets a result card
+const WEIGHTY = ['story', 'offer', 'demand', 'favour', 'contest'];             // card types whose outcome gets a result card
 function answer(W, i) {
   const view = nextCard(W), raw = W.cards.shift(), opt = view.opts[i];
   if (!WEIGHTY.includes(raw.type)) return void opt.run?.();
@@ -2985,7 +3055,7 @@ const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct } = __m['js/sim/util.js'];
 const { house, alive, holds, ruled, locals, balks, household, holder, job, owes, pledged, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear, routeParts, net, warBill } = __m['js/sim/state.js'];
 const { ACTIONS, cost, barred, frontLine } = __m['js/sim/actions.js'];
-const { heirOf, unwed, splitRisk, served, temper, takes } = __m['js/sim/family.js'];
+const { heirOf, unwed, splitRisk, served, temper, takes, voices, support } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
 const { mood } = __m['js/sim/realm.js'];
 const { grievances, boonText, terms } = __m['js/sim/court.js'];
@@ -3186,7 +3256,7 @@ function court(W, h) {
     return (good ? `<small class="doing">${good[0].toUpperCase()}${good.slice(1)}</small>` : '') + (theirs ? `<small class="bad">You owe it ${count(theirs)}</small>` : '');
   };
   const peers = locals(W, W.regions[h.seat]).filter(o => o !== h), all = k => W.ledger.filter(e => e.k === 'favour' && e[k] === h.id && !house(W, e.a).dead && !house(W, e.b).dead).length;
-  const tally = boxes(box('Favours owed to you', all('b')), box('Favours you owe', all('a')), box('Backing your heir', `${peers.filter(o => pledged(W, o, h, 'heir')).length} of ${peers.length}`, 'houses of your seat'));
+  const tally = boxes(box('Favours owed to you', all('b')), box('Favours you owe', all('a')), box('Promised to your heir', `${peers.filter(o => pledged(W, o, h, 'heir')).length} of ${peers.length}`, 'houses of your seat'));
   const seats = `<section><h3>Posts</h3><ul class="allies notes">${rows(Object.keys(JOBS), k => {
     const who = holder(W, h, k), a = job(W, h, k) / JOBS[k].by;
     return `<li><b>${JOBS[k].name}:</b> ${!who ? 'no one' : who.head ? ref(who, true) : esc(who.n)}<small>${!who ? JOBS[k].short : a ? JOBS[k].effect(+a.toFixed(1)) : 'Holds the post but will not serve'}</small></li>`;
@@ -3213,10 +3283,15 @@ function familyGroup(W, h) {
   const succession = heir ? state('family', `${UI.succession}: ${esc(heir.n)}`, `${trait(heir.t)} · Age ${W.year - heir.b} · Ability ${heir.a}/10`) :
     `<div class="notice warning">${icon('alert')}<div><b>${UI.noHeir}</b><p>Succession is vulnerable.</p><details data-section="succession"><summary>How succession works →</summary><p>${UI.heirHelp}</p></details></div></div>`;
   const risk = splitRisk(W, h);
+  // Who stands where on the heir, heaviest voice first, for a house that rules its seat.
+  const court = heir && W.regions[h.seat].ruler === h.id ? voices(W, h).sort((a, b) => b.w - a.w) : [], backed = support(court);
+  const stand = court.length > 1 ? `<details class="action-section" data-section="stand"><summary><span>Who stands behind ${esc(heir.n)}</span><small class="${backed < CFG.contest.safe ? 'bad' : ''}">${pct(backed)} of your court</small>${icon('chevron')}</summary><div class="action-body">
+    <p>Under ${CFG.contest.safe * 100}%, the strongest voice against names a price when ${esc(h.head.n)} dies. Under ${CFG.contest.war * 100}%, refusing it means civil war. Win houses over on the Court page; give relatives what they want.</p>
+    <ul class="allies notes">${rows(court, v => `<li><b>${esc(v.name)}</b> <em class="side ${v.side > 0 ? 'for' : v.side < 0 ? 'against' : ''}">${v.side > 0 ? 'For' : v.side < 0 ? 'Against' : 'Undecided'}</em><small>Weight ${Math.round(v.w)}</small></li>`)}</ul></div></details>` : '';
   const split = risk.length ? `<details class="action-section" data-section="split"><summary><span>If ${esc(h.head.n)} died today</span><small>up to ${pct(risk[0].odds)} a land</small>${icon('chevron')}</summary><div class="action-body"><p>Lands away from your seat may break away under a cousin when a head dies. At most ${CFG.split.most} go at once. Loyal followers, an able heir and fewer far lands all lower the chance.</p><ul class="job-list">${rows(risk, x => `<li><b>${REGIONS[x.r.i].name}</b> ${pct(x.odds)} chance · ${Math.round(x.r.shares[h.id].loy)}% loyal</li>`)}</ul></div></details>` : '';
   const marry = unwed(W, h).length ? actionSection(W,'marry',true) : state('lock', UI.alliances, UI.marriageHelp);
   const history = `<details class="action-section history" data-section="line"><summary>${icon('scroll')}<span>${UI.history}</span>${icon('chevron')}</summary><ol class="family-line">${rows([...W.chron].reverse(), p => `<li><b>${esc(p.n)}</b><span>${p.from} – ${p.to ?? W.year}</span><small>${p.t} · Ability ${p.a}</small></li>`)}</ol>${actionSection(W,'branch')}</details>`;
-  return hero(W, h) + succession + split + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? children(W, h) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
+  return hero(W, h) + succession + stand + split + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? children(W, h) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
     ${h.kin.length ? `<section class="children-section"><h3>Relatives <span class="count">${h.kin.length}</span></h3>${relatives(W, h)}</section>` : ''}
     ${allies.length ? `<section><h3>${UI.alliances} · ${allies.length}</h3><ul class="allies">${rows(allies, o => `<li>${ref(o, true)}<small>${Math.max(0, CFG.tieYears - (W.year - h.ties[o.id]))} years remaining</small></li>`)}</ul></section>` : ''}${marry}${history}`;
 }
