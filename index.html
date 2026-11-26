@@ -443,7 +443,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:44 PM ET · 7ab2603';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:48 PM ET · faec8ac';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -3169,7 +3169,10 @@ function render() {
   G.returnFocus = null;
   if (m) { G.resume ||= !G.paused; G.paused = true; }          // a popup stops time; time picks up again once it is answered
   else if (G.resume) G.resume = G.paused = false;
+  // A popup redrawn in place (choosing where the council leans) keeps its scroll; a different popup starts at the top.
+  const was = $('modal').querySelector('.card'), kept = was && m && was.querySelector('h2')?.textContent === new DOMParser().parseFromString(m, 'text/html').querySelector('h2')?.textContent ? [was.scrollTop, $('modal').scrollTop] : null;
   $('modal').innerHTML = m ? `<div class="card" tabindex="-1">${m}</div>` : ''; $('modal').hidden = !m;
+  if (kept) [$('modal').querySelector('.card').scrollTop, $('modal').scrollTop] = kept;
   $('top').innerHTML = G.phase === 'title' ? '' : hud(W, G.paused || !!G.open, G.speed);
   $('news').textContent = G.phase === 'pick' ? 'Tap a land to see its houses, then choose one to lead.' : '';
   if (playing) updateInbox(W);
