@@ -391,6 +391,8 @@ summary::-webkit-details-marker { display:none; }
 .card-corner { position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:6px; color:var(--dim); font:600 12px var(--body); font-variant-numeric:tabular-nums; }
 .card-corner .icon { width:34px; height:34px; border:0; background:none; }
 #sheet .body>.tabs { position:sticky; top:-4px; z-index:2; box-shadow:0 6px 12px -4px #000c; }   /* Realm and World tabs stay in reach while the page scrolls */
+.changes { list-style:none; margin:0; padding:10px 12px; display:grid; gap:6px; border:1px solid var(--line); border-radius:10px; background:#0d1a2b; font-size:13.5px; color:var(--ink); }
+.changes li::before { content:'›'; color:var(--gold); margin-right:8px; }
 </style>
 </head>
 <body>
@@ -414,7 +416,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:23 PM ET · 8a1c238';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:28 PM ET · 2ba321b';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -1376,7 +1378,7 @@ __m['js/sim/actions.js'] = (() => {
 // kind: what a target is (house | region | kid | option | self). why() gives the reason a target is barred, or ''.
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
-// bulk marks an action the player may run on every target at once.
+// bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
 const { CFG, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { chance, gold, people, pct } = __m['js/sim/util.js'];
@@ -1410,7 +1412,7 @@ const feastLift = (W, h) => (W.year - (h.feast ?? -99) < 5 ? 7 : 14);   // feast
 
 const ACTIONS = {
   marry: {
-    group: 'family', kind: 'house', label: 'Arrange a marriage', hint: `Joins two houses for ${CFG.tieYears} years. They fight beside each other, and one inherits if the other's line fails.`,
+    big: true, group: 'family', kind: 'house', label: 'Arrange a marriage', hint: `Joins two houses for ${CFG.tieYears} years. They fight beside each other, and one inherits if the other's line fails.`,
     targets: contacts, cost: (W, h) => unit(h) * 2,
     note: (W, h, t) => `They would send ${gold(t.levy * CFG.allyAid * 1000)} soldiers to your wars, and you would send ${gold(h.levy * CFG.allyAid * 1000)} to theirs`, reach: () => FAR,
     why: (W, h, t) => (tied(W, h, t) ? 'Already joined' : !unwed(W, h).length ? `You have no unwed child aged ${CFG.adult} or over` : !unwed(W, t).length ? `They have no unwed child aged ${CFG.adult} or over` : opinion(t, h) < -20 ? 'They refuse you' : ''),
@@ -1422,7 +1424,7 @@ const ACTIONS = {
     run(W, h, k) { h.kids.forEach(x => delete x.heir); k.heir = true; },
   },
   branch: {
-    group: 'family', kind: 'region', label: 'Plant a branch abroad', hint: `Send a grown child to win a following of ${LABEL.folk} in another land.`,
+    big: true, group: 'family', kind: 'region', label: 'Plant a branch abroad', hint: `Send a grown child to win a following of ${LABEL.folk} in another land.`,
     targets: (W, h) => [...reach(W, h)].map(i => W.regions[i]).filter(r => !r.shares[h.id]), cost: (W, h) => unit(h) * 5,
     why: (W, h) => (spare(W, h).length ? '' : 'Needs a grown, unwed child who is not your named heir'),
     note: (W, h, r) => `${spare(W, h)[0] ? `Sends ${spare(W, h)[0].n}, who leaves your family. ` : ''}${people(r.pop)} ${LABEL.folk}, ${Object.keys(r.shares).length} houses, ruled by House ${house(W, r.ruler).name}`,
@@ -1488,7 +1490,7 @@ const ACTIONS = {
     },
   },
   coup: {
-    group: 'power', kind: 'region', label: 'Seize a throne', hint: 'Plot against the ruler of a land where you have a following. It may work in a night, fail, or become civil war.',
+    big: true, group: 'power', kind: 'region', label: 'Seize a throne', hint: 'Plot against the ruler of a land where you have a following. It may work in a night, fail, or become civil war.',
     targets: (W, h) => holds(W, h).filter(r => r.ruler !== h.id), cost: (W, h) => unit(h) * 2,
     note: (W, h, r) => `Ruled by House ${house(W, r.ruler).name}. Your power is ${pct(h.power / (house(W, r.ruler).power || 1))} of theirs`,
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : 'You need a following here first.'),
@@ -1496,7 +1498,7 @@ const ACTIONS = {
     run: (W, h, r) => coup(W, h, r),
   },
   purge: {
-    group: 'power', kind: 'house', label: 'Drive out a house', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, though your own grow less loyal. Lose and it rises against you in civil war.',
+    big: true, group: 'power', kind: 'house', label: 'Drive out a house', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, though your own grow less loyal. Lose and it rises against you in civil war.',
     targets: (W, h) => alive(W).filter(o => o !== h && ruled(W, h).some(r => r.shares[o.id])), cost: (W, h) => unit(h) * 3,
     note: (W, h, t) => `${pct(routOdds(h, t))} chance. It holds ${ruled(W, h).filter(r => r.shares[t.id]).map(r => `${pct(r.shares[t.id].s)} of ${land(r)}`).join(', ')}`,
     reach: (W, h) => (h.thrones ? 'It has no following in a land you rule.' : 'Only a house that rules a land can drive another out.'),
@@ -1504,7 +1506,7 @@ const ACTIONS = {
     run: (W, h, t) => purge(W, h, t),
   },
   war: {
-    group: 'power', kind: 'region', label: 'March to war', hint: 'A ruling house can take a neighbouring land by force. War costs gold, lives and the land itself.',
+    big: true, group: 'power', kind: 'region', label: 'March to war', hint: 'A ruling house can take a neighbouring land by force. War costs gold, lives and the land itself.',
     targets: borders, cost: (W, h) => unit(h) * 2,
     note: (W, h, r) => `Held by House ${house(W, r.ruler).name}: ${gold((house(W, r.ruler).levy + allyAid(W, house(W, r.ruler), h)) * 1000)} soldiers with allies. You: ${gold((h.levy + allyAid(W, h, house(W, r.ruler))) * 1000)} with allies`,
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : h.thrones ? 'Too far away. You can march only on a land next to one you rule.' : 'Only a house that rules a land can march.'),
@@ -1512,7 +1514,7 @@ const ACTIONS = {
     run: (W, h, r) => startWar(W, h, r),
   },
   peace: {
-    group: 'power', kind: 'region', label: 'Call off a war', hint: 'Ends a war you started, at a cost in prestige.',
+    big: true, group: 'power', kind: 'region', label: 'Call off a war', hint: 'Ends a war you started, at a cost in prestige.',
     targets: (W, h) => W.wars.filter(w => w.a === h.id).map(w => W.regions[w.r]),
     run(W, h, r) {
       W.wars = W.wars.filter(w => !(w.a === h.id && w.r === r.i));
@@ -1537,7 +1539,7 @@ const ACTIONS = {
     },
   },
   bomb: {
-    group: 'power', kind: 'region', label: 'Use the bomb', hint: 'Ends a war you are fighting in a day, at a terrible price in lives and in what every house thinks of you. Needs the atomic bomb.',
+    big: true, group: 'power', kind: 'region', label: 'Use the bomb', hint: 'Ends a war you are fighting in a day, at a terrible price in lives and in what every house thinks of you. Needs the atomic bomb.',
     targets: (W, h) => W.wars.filter(w => w.a === h.id || w.b === h.id).map(w => W.regions[w.r]), cost: (W, h) => unit(h) * 4,
     why: (W, h) => (knows(W, h, 'The atomic bomb') ? '' : 'Needs the atomic bomb'),
     run(W, h, r) {
@@ -1658,15 +1660,15 @@ const { CFG, LABEL } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, pick, range, maxBy, gold } = __m['js/sim/util.js'];
 const { house, alive, holds, locals, contacts, tied, sway, note, unit } = __m['js/sim/state.js'];
-const { grown, unwed, heirOf, heirLine, wed, succeed } = __m['js/sim/family.js'];
+const { grown, unwed, heirOf, wed, succeed } = __m['js/sim/family.js'];
 
 const me = W => house(W, W.player);
 const foe = W => (W.rival && !house(W, W.rival.id).dead ? house(W, W.rival.id) : null);
 const lose = (h, n) => { h.prestige = Math.max(0, h.prestige - n); };
 const favor = (W, h, by) => { for (const r of holds(W, h)) r.shares[h.id].favor += by; };
 const drop = (h, name) => { h.kids = h.kids.filter(k => k.n !== name); };
-// The player loses a child to a story: it is logged and shown as its own popup, with who inherits now.
-const mourn = (W, name, txt) => { drop(me(W), name); say(W, txt); W.cards.push({ type: 'news', title: `${name} is lost`, txt: `${txt} ${heirLine(W, me(W))}` }); };
+// The player loses a child to a story. The result card that follows the choice shows it and who inherits now.
+const mourn = (W, name, txt) => { drop(me(W), name); say(W, txt); };
 const pay = (W, n) => ({ bar: me(W).gold < n, hint: `Costs ${gold(n)} gold` });
 const spend = (W, n) => { me(W).gold -= n; };
 const say = (W, txt) => note(W, txt, { h: W.player, r: me(W).seat, w: 1 });
@@ -1945,7 +1947,8 @@ const { GUIDE, LABEL, TAXES } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { NATURE } = __m['js/data/history.js'];
 const { gold } = __m['js/sim/util.js'];
-const { house, holds, sway, note, fullName, unit } = __m['js/sim/state.js'];
+const { house, holds, alive, tied, opinion, sway, note, fullName, unit } = __m['js/sim/state.js'];
+const { heirOf } = __m['js/sim/family.js'];
 const { ACTIONS } = __m['js/sim/actions.js'];
 const { startWar } = __m['js/sim/conflict.js'];
 const { STORIES } = __m['js/sim/stories.js'];
@@ -1956,6 +1959,7 @@ const pay = (W, n) => ({ bar: me(W).gold < n, hint: `Costs ${gold(n)} gold` });
 const CARDS = {
   story: (W, c) => (STORIES[c.k].ok(W, me(W), W.rival && !house(W, W.rival.id).dead ? house(W, W.rival.id) : null) ? STORIES[c.k].view(W, c) : null),
   news: (W, c) => ({ title: c.title, text: c.txt, opts: [{ label: 'Carry on' }] }),
+  result: (W, c) => ({ title: c.title, text: c.txt, changes: c.changes, opts: [{ label: 'Carry on' }] }),
   // One tutorial screen. `step` is shown as n/total and the `corner` option is drawn as an X that skips the rest.
   guide(W, c) {
     const pages = GUIDE[c.k], last = c.i === pages.length - 1;
@@ -2023,13 +2027,53 @@ function nextCard(W) {
   }
   return null;
 }
-function answer(W, i) {
-  const view = nextCard(W);
-  W.cards.shift();
-  view.opts[i].run?.();
+// What the player would want to know changed: taken before and after a decision and compared.
+function snap(W, who) {
+  const h = me(W), shares = holds(W, h).map(r => r.shares[h.id]);
+  return { gold: h.gold, prestige: h.prestige, head: h.head.n, heir: heirOf(W, h)?.n, last: W.log.at(-1),
+    kids: Object.fromEntries(h.kids.map(k => [k.n, { a: k.a, t: k.t }])), favor: shares.length ? shares.reduce((n, s) => n + s.favor, 0) / shares.length : 0,
+    allies: alive(W).filter(o => o !== h && tied(W, h, o)).map(o => o.name), feud: W.rival?.id, liked: who && !who.dead ? opinion(who, h) : null };
+}
+const signed = (n, f = Math.round) => `${n > 0 ? '+' : '−'}${f(Math.abs(n))}`;
+function differ(W, a, b, who) {
+  const out = [], h = me(W);
+  if (b.head !== a.head) out.push(`${b.head} now leads your house`);
+  for (const n in a.kids) {
+    const k = b.kids[n], was = a.kids[n];
+    if (!k) { if (b.head !== n) out.push(`${n} is gone from your family`); continue; }
+    if (k.a !== was.a) out.push(`${n}: ability ${was.a} → ${k.a}`);
+    if (k.t !== was.t) out.push(`${n} is now ${k.t}`);
+  }
+  if (b.head === a.head && b.heir !== a.heir) out.push(b.heir ? `Your heir is now ${b.heir}` : 'You have no heir');
+  for (const n of b.allies) if (!a.allies.includes(n)) out.push(`House ${n} is now your ally by marriage and lends soldiers in your wars`);
+  if (a.feud !== undefined && a.feud !== null && !W.rival) out.push('The feud is over');
+  if (Math.abs(b.prestige - a.prestige) >= 1) out.push(`Prestige ${signed(b.prestige - a.prestige)}`);
+  if (Math.abs(b.favor - a.favor) >= 2) out.push(`Loyalty of your followers ${signed(b.favor - a.favor)}`);
+  const real = out.length;                                 // opinion and gold are shown, but alone they are not worth a popup
+  if (b.liked !== null && a.liked !== null && Math.abs(b.liked - a.liked) >= 5) out.push(`House ${who.name}'s opinion of you ${Math.round(a.liked)} → ${Math.round(b.liked)}`);
+  if (Math.abs(b.gold - a.gold) >= 1) out.push(`Gold ${signed(b.gold - a.gold, gold)}`);
+  return { out, real, h };
+}
+// Runs a decision and, if it changed anything worth knowing, puts a result card in front of the player.
+// Returns whether a card was made, or null if run() reported that nothing was done.
+function witness(W, title, run, who, chose) {
+  const before = snap(W, who), ok = run(), after = snap(W, who);
+  const said = W.log.slice(W.log.indexOf(before.last) + 1).filter(e => e.h === W.player || e.x === W.player).map(e => e.txt);
+  const { out, real } = differ(W, before, after, who);
+  if (ok === false) return null;
+  if (!(said.length || real)) return false;
+  W.cards.unshift({ type: 'result', title, txt: said.join(' ') || (chose ? `Your choice: ${chose}.` : 'It is done.'), changes: out });
+  return true;
 }
 
-return { CARDS, nextCard, answer };
+const WEIGHTY = ['story', 'offer', 'demand'];             // card types whose outcome gets a result card
+function answer(W, i) {
+  const view = nextCard(W), raw = W.cards.shift(), opt = view.opts[i];
+  if (!WEIGHTY.includes(raw.type)) return void opt.run?.();
+  witness(W, view.title, () => opt.run?.(), view.who === undefined ? null : house(W, view.who), opt.label);
+}
+
+return { CARDS, nextCard, witness, answer };
 })();
 __m['js/ui/dom.js'] = (() => {
 // Tiny DOM helpers shared by the interface.
@@ -2641,7 +2685,8 @@ function card(W, v, peek) {
   const stats = o && peek ? boxes(headBox(W, o), box('Gold', gold(o.gold), `+${gold(o.inc)} a year`), box('Soldiers', soldiers(o)), box('Thrones', o.thrones), box('World rank', `#${rankOf(W, o)}`))
     + `<p>Seat: ${REGIONS[o.seat].name}. ${TRAITS[o.head.t].blurb} Their opinion of you is ${opinion(o, me(W))}, from -100 to 100.</p>` : '';
   const corner = v.step ? `<div class="card-corner"><span>${v.step.join('/')}</span><button class="icon" data-go="card:${v.corner}" aria-label="${v.opts[v.corner].label}">${icon('close')}</button></div>` : '';
-  return `${corner}<h2>${esc(v.title)}</h2><p>${text}</p>${stats}
+  const changes = v.changes?.length ? `<ul class="changes">${rows(v.changes, c => `<li>${esc(c)}</li>`)}</ul>` : '';
+  return `${corner}<h2>${esc(v.title)}</h2><p>${text}</p>${changes}${stats}
     ${rows(v.opts, (opt, i) => (i === v.corner ? '' : `<button class="pick" data-go="card:${i}" ${opt.bar ? 'disabled' : ''}><b>${opt.label}</b>${esc(opt.hint ?? '')}</button>`))}`;
 }
 
@@ -2679,11 +2724,11 @@ return { hud, mine, bar, affordable, sheet, housePreview, title, ambitions, card
 __m['js/main.js'] = (() => {
 // Wires the simulation to the screen: the game loop, input, and saving.
 const { CFG, GUIDE, RULES, LABEL, UI } = __m['js/config.js'];
-const { RID } = __m['js/data/regions.js'];
+const { REGIONS, RID } = __m['js/data/regions.js'];
 const { createWorld, takeHouse, foundHouse, house, refresh } = __m['js/sim/state.js'];
 const { stepYear, tellThrones } = __m['js/sim/step.js'];
 const { ACTIONS, perform } = __m['js/sim/actions.js'];
-const { nextCard, answer } = __m['js/sim/cards.js'];
+const { nextCard, answer, witness } = __m['js/sim/cards.js'];
 const { createMap } = __m['js/ui/map.js'];
 const { $, esc } = __m['js/ui/dom.js'];
 const { initTips } = __m['js/ui/tips.js'];
@@ -2857,10 +2902,13 @@ const GO = {
 function act(id, raw) {
   const W = G.W, h = house(W, W.player), a = ACTIONS[id], said = W.log.length;
   const t = { house: () => W.houses[raw], region: () => W.regions[raw], kid: () => h.kids[raw], option: () => +raw, self: () => null }[a.kind]();
-  if (!perform(W, h, id, t)) return;
+  const name = t === null ? '' : a.kind === 'house' ? `House ${t.name}` : a.kind === 'region' ? REGIONS[t.i].name : a.kind === 'kid' ? t.n : '';
+  // A weighty action reports back with a result card; a routine one with the small message in the panel.
+  const shown = a.big ? witness(W, name ? `${a.label}: ${name}` : a.label, () => perform(W, h, id, t), a.kind === 'house' ? t : null) : perform(W, h, id, t) ? false : null;
+  if (shown === null) return;                              // it could not be done
   refresh(W);
   tellThrones(W);                                          // a coup can change a throne the moment it is tried
-  G.said = W.log.length > said ? W.log.at(-1).txt : `${a.label}: done.`;
+  if (!shown) G.said = W.log.length > said ? W.log.at(-1).txt : `${a.label}: done.`;
 }
 
 document.addEventListener('click', e => {
