@@ -414,7 +414,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:10 PM ET · ee25261';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:23 PM ET · 8a1c238';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -873,6 +873,8 @@ const sway = (a, b, by) => { a.op[b.id] = clamp(opinion(a, b) + by, -100, 100); 
 // Research. A house has a discovery once the knowledge of its home land reaches the year our world made it.
 const techYear = name => TECHS.find(t => t.name === name).ours;
 const knows = (W, h, name) => W.regions[h.seat].know >= techYear(name);
+// The highest level of scholars a house may fund with what its seat knows.
+const fundCap = (W, h) => (knows(W, h, 'The university') ? 3 : knows(W, h, 'Paper') ? 2 : 1);
 const workCap = r => CFG.maxWork + sum(UNLOCKS, u => (u.work && r.know >= techYear(u.tech) ? u.work : 0));
 const routeCap = (W, h) => 2 + W.regions[h.seat].works.roads + (is(h, 'Merchant') ? 2 : 0) + sum(UNLOCKS, u => (u.routes && knows(W, h, u.tech) ? u.routes : 0));
 // The price unit. It grows with the square root of income, so a richer house can afford more of everything.
@@ -998,6 +1000,7 @@ function createWorld(seed, rules = {}) {
 function takeHouse(W, id, ambition) {
   const h = W.houses[id];
   W.player = id; W.ambition = ambition;
+  h.fund = Math.min(h.fund, fundCap(W, h));                // the player plays by the unlock rules from the first day
   W.chron = [{ n: h.head.n, t: h.head.t, a: h.head.a, from: W.year, deeds: {} }];
 }
 function foundHouse(W, r, name, trait) {
@@ -1038,7 +1041,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, workCap, routeCap, unit, allyAid, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeCap, unit, allyAid, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1377,7 +1380,7 @@ __m['js/sim/actions.js'] = (() => {
 const { CFG, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { chance, gold, people, pct } = __m['js/sim/util.js'];
-const { house, alive, holds, ruled, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit } = __m['js/sim/state.js'];
+const { house, alive, holds, ruled, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap } = __m['js/sim/state.js'];
 const { grown, unwed, wed } = __m['js/sim/family.js'];
 const { coup, purge, routOdds, startWar } = __m['js/sim/conflict.js'];
 
@@ -1402,6 +1405,8 @@ const work = k => ({
     note(W, `House ${h.name} builds ${WORKS[k][0].toLowerCase()} in ${land(r)}.`, { r: r.i, h: h.id });
   },
 });
+
+const feastLift = (W, h) => (W.year - (h.feast ?? -99) < 5 ? 7 : 14);   // feasts close together are worth less
 
 const ACTIONS = {
   marry: {
@@ -1435,8 +1440,10 @@ const ACTIONS = {
     run(W, h, v) { h.tax = v; },
   },
   feast: {
-    group: 'goys', kind: 'self', label: 'Hold a great feast', hint: 'Lifts the loyalty of all your followers for a few years.', cost: (W, h) => unit(h),
-    run(W, h) { for (const r of holds(W, h)) r.shares[h.id].favor += 14; },
+    group: 'goys', kind: 'self', label: 'Hold a great feast', hint: 'Lifts the loyalty of all your followers for a few years. One a year, and a second within five years does half as much.', cost: (W, h) => unit(h),
+    why: (W, h) => (h.feast === W.year ? 'You have already feasted this year' : ''),
+    note: (W, h) => `Loyalty +${feastLift(W, h)} in every land you hold, fading over a few years`,
+    run(W, h) { for (const r of holds(W, h)) r.shares[h.id].favor += feastLift(W, h); h.feast = W.year; },
   },
   farms: work('farms'), schools: work('schools'), roads: work('roads'),
   pact: {
@@ -1516,7 +1523,7 @@ const ACTIONS = {
   fund: {
     group: 'know', kind: 'option', label: 'Fund scholars', hint: `Each level costs ${CFG.fundCost * 100}% of your income and speeds knowledge wherever you have followers.`,
     targets: () => FUNDS.map((_, i) => i), name: v => FUNDS[v], now: h => h.fund,
-    why: (W, h, v) => (v === 2 && !knows(W, h, 'Paper') ? 'Needs paper' : v === 3 && !knows(W, h, 'The university') ? 'Needs the university' : ''),
+    why: (W, h, v) => (v <= fundCap(W, h) ? '' : v === 2 ? 'Needs paper' : 'Needs the university'),
     run(W, h, v) { h.fund = v; },
   },
   press: {
@@ -1692,7 +1699,7 @@ function endFeud(W, how) {
 
 const STORIES = {
   insult: {
-    ok: (W, h, rv) => rv && grown(W, rv).length && heirOf(W, h) && { them: grown(W, rv)[0].n, heir: heirOf(W, h).n },
+    ok: (W, h, rv) => rv && grown(W, rv).length && grown(W, h).includes(heirOf(W, h)) && { them: grown(W, rv)[0].n, heir: heirOf(W, h).n },   // only a grown heir can be called out
     view: (W, c) => ({
       title: 'An insult at the feast', who: W.rival.id,
       text: `Before a hundred guests, ${c.them}, the young master of House ${foe(W).name}, calls your heir ${c.heir} a coward and the child of cowards. The hall goes silent and looks at you.`,
