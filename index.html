@@ -397,6 +397,11 @@ summary::-webkit-details-marker { display:none; }
 .home-goal .glyph { width:18px; height:18px; color:var(--gold); flex:none; }
 .home-goal span { display:grid; gap:1px; font-size:12.5px; color:#b9c7d8; min-width:0; }
 .home-goal b { font-size:13.5px; color:var(--ink); }
+.fronts { display:grid; gap:8px; }
+.front { display:grid; gap:5px; padding:11px 12px; border:1px solid #6b4a4a; border-radius:10px; background:#241a22; }
+.front b { font-size:15px; } .front em { font:600 11px var(--body); color:var(--gold); margin-left:6px; }
+.front small { color:#b9c7d8; font-size:12.5px; text-transform:none; letter-spacing:0; font-weight:400; }
+.tide { height:8px; border-radius:4px; background:#7a3340; overflow:hidden; } .tide i { display:block; height:100%; background:#5fbf78; }
 </style>
 </head>
 <body>
@@ -420,7 +425,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 12:40 PM ET · f7150c6';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:46 PM ET · 4199b01';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -479,6 +484,7 @@ const CFG = {
   price: 3,              // gold per square root of yearly income: prices rise far slower than wealth
   storyGap: [9, 16],     // years between story events
   storyRest: 45,         // years before the same story may be told again
+  mainFront: 3,          // weight of the front a house names its main effort; every other front weighs 1
   goalGold: 5, goalPrestige: 10,   // reward for a ruler's goal: gold in price units, and prestige
   rivalRest: 15,         // years a rival waits after striking at the player before it strikes again
   growth: .02, drift: .015, revoltAt: 28, revolt: .07, rise: .02,
@@ -591,7 +597,7 @@ const UI = {
   knowledge: 'Local knowledge', literacy: 'Literacy', seat: 'Seat', pace: 'Research pace',
   knowledgeUnit: 'Equivalent real-history year', perYear: 'a year', funding: 'Research funding', pacePending: 'Measured after the first year',
   childrenCount: n => `${n} ${n === 1 ? 'child' : 'children'}`,
-  noAllies: 'No marriage alliances yet', noWars: 'Your house is at peace.', activeWars: 'Active wars',
+  noAllies: 'No marriage alliances yet', noWars: 'Your house is at peace.', activeWars: 'Your wars',
   lands: 'Your lands', branchLocked: 'Needs a grown, unmarried child who is not your named heir.',
   ranking: 'Great houses', rank: 'Your standing', globalKnowledge: 'World knowledge',
   filter: 'Find a house or land', settings: 'Game settings', music: 'Music', title: 'Title screen',
@@ -890,6 +896,15 @@ const routeCap = (W, h) => 2 + W.regions[h.seat].works.roads + (is(h, 'Merchant'
 const unit = h => CFG.price * Math.sqrt(Math.max(1, h.inc));
 // Soldiers that houses joined to h by marriage send to its wars. They stay home if also joined to the foe.
 const allyAid = (W, h, foe) => CFG.allyAid * sum(alive(W).filter(o => o !== h && o !== foe && tied(W, h, o) && !(foe && tied(W, foe, o))), o => o.levy);
+// A house's soldiers are shared out among the wars it is in. The front it names its main effort takes a larger share.
+const fronts = (W, h) => W.wars.filter(w => w.a === h.id || w.b === h.id);
+const weigh = (w, h) => (w.main?.includes(h.id) ? CFG.mainFront : 1);
+const force = (W, h, w) => h.levy * weigh(w, h) / sum(fronts(W, h), x => weigh(x, h));
+// Soldiers each side brings to war w, allies included: [attacker, defender]. A defender in a war between realms fights harder.
+const strength = (W, w) => {
+  const a = W.houses[w.a], b = W.houses[w.b];
+  return [force(W, a, w) + allyAid(W, a, b), (force(W, b, w) + allyAid(W, b, a)) * (w.kind === 'war' ? CFG.defend : 1)];
+};
 const fullName = h => `${h.head.n} the ${h.head.t}`;
 
 // Lands a land can deal with: its neighbours, plus far shores once either side can cross the ocean.
@@ -1050,7 +1065,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeCap, unit, allyAid, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1297,17 +1312,18 @@ __m['js/sim/conflict.js'] = (() => {
 const { CFG } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, range, clamp, people, gold } = __m['js/sim/util.js'];
-const { house, ruled, holds, locals, is, sway, note, deed, bury, moveShare, dropShare, setRuler, allyAid } = __m['js/sim/state.js'];
+const { house, ruled, holds, locals, is, sway, note, deed, bury, moveShare, dropShare, setRuler, strength } = __m['js/sim/state.js'];
 const { succeed } = __m['js/sim/family.js'];
 
 
 function startWar(W, a, r, kind = 'war') {
   const b = house(W, r.ruler), R = named(r.i);
-  W.wars.push({ kind, a: a.id, b: b.id, r: r.i, from: W.year, tide: 0, dead: 0 });
+  const w = { kind, a: a.id, b: b.id, r: r.i, from: W.year, tide: 0, dead: 0 };
+  W.wars.push(w);
   W.tally.wars++;
   sway(a, b, -80); sway(b, a, -80); deed(W, a, 'wars');
   const news = note(W, kind === 'war' ? `House ${a.name} marches on ${R}, held by House ${b.name}.` : `Civil war in ${R}: House ${a.name} rises against House ${b.name}.`, { r: r.i, h: a.id, x: b.id, w: 1 });
-  if (b.id === W.player) W.cards.push({ type: 'news', title: `You are under attack in ${R}`, txt: `${news.txt} They bring ${gold((a.levy + allyAid(W, a, b)) * 1000)} soldiers with their allies. You have ${gold((b.levy + allyAid(W, b, a)) * 1000)}.` });
+  if (b.id === W.player) W.cards.push({ type: 'news', title: `You are under attack in ${R}`, txt: `${news.txt} They bring ${gold(strength(W, w)[0] * 1000)} soldiers with their allies. You can field ${gold(strength(W, w)[1] * 1000)} on this front.` });
 }
 
 // A plot against a land's ruler: it works in a night, fails, or turns into civil war.
@@ -1350,11 +1366,20 @@ function purge(W, h, t) {
   if (!holds(W, t).length) { note(W, `House ${t.name} has no followers left and is no more.`, { h: t.id, x: h.id, r: lands[0].i, w: 1 }); bury(W, t); }
 }
 
+// One side stakes the war on a single battle. The stronger side usually wins it, and the tide swings hard either way.
+function assault(W, h, w) {
+  const mine = w.a === h.id, [sa, sb] = strength(W, w), won = chance(W, (mine ? sa : sb) / (sa + sb + 1e-9)), r = W.regions[w.r];
+  const dead = r.pop * .01;
+  r.pop -= dead; w.dead += dead; W.tally.dead += dead; w.struck = W.year;
+  w.tide = clamp(w.tide + (won === mine ? .7 : -.5), -1.6, 1.6);
+  note(W, `House ${h.name} stakes the war for ${named(w.r)} on one battle and ${won ? 'wins' : 'loses'} it.`, { r: w.r, h: h.id, x: mine ? w.b : w.a, w: 1 });
+}
+
 function stepWar(W, w) {
   const a = house(W, w.a), b = house(W, w.b), r = W.regions[w.r], R = named(w.r), years = W.year - w.from;
   const over = () => { W.wars = W.wars.filter(x => x !== w); };
   if (a.dead || b.dead || r.ruler !== b.id) return over();
-  const sa = (a.levy + allyAid(W, a, b)) * range(W, .6, 1.4), sb = (b.levy + allyAid(W, b, a)) * range(W, .6, 1.4) * (w.kind === 'war' ? CFG.defend : 1);
+  const [ma, mb] = strength(W, w), sa = ma * range(W, .6, 1.4), sb = mb * range(W, .6, 1.4);
   w.tide += (sa - sb) / (sa + sb + 1e-9) * .6;
   let dead = r.pop * range(W, .002, .008) * (w.kind === 'civil' ? 1.5 : 1);
   if (Math.min(W.regions[a.seat].know, r.know) >= 1945 && chance(W, .015)) {
@@ -1378,7 +1403,7 @@ function stepWar(W, w) {
   }
 }
 
-return { startWar, coup, routOdds, purge, stepWar };
+return { startWar, coup, routOdds, purge, assault, stepWar };
 })();
 __m['js/sim/actions.js'] = (() => {
 // Everything a house can do. The player's buttons and the AI both go through this one table.
@@ -1388,10 +1413,10 @@ __m['js/sim/actions.js'] = (() => {
 // bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
 const { CFG, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
-const { chance, gold, people, pct } = __m['js/sim/util.js'];
-const { house, alive, holds, ruled, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap } = __m['js/sim/state.js'];
+const { chance, sum, gold, people, pct } = __m['js/sim/util.js'];
+const { house, alive, holds, ruled, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap, fronts, strength } = __m['js/sim/state.js'];
 const { grown, unwed, wed } = __m['js/sim/family.js'];
-const { coup, purge, routOdds, startWar } = __m['js/sim/conflict.js'];
+const { coup, purge, routOdds, startWar, assault } = __m['js/sim/conflict.js'];
 
 const land = r => named(r.i);
 const rivals = (W, h) => alive(W).filter(o => o !== h && holds(W, h).some(r => r.shares[o.id]));
@@ -1416,6 +1441,13 @@ const work = k => ({
 });
 
 const feastLift = (W, h) => (W.year - (h.feast ?? -99) < 5 ? 7 : 14);   // feasts close together are worth less
+
+// The war house h is fighting in land r, and a line saying how it stands for h.
+const warAt = (W, h, r) => fronts(W, h).find(w => w.r === r.i);
+function frontLine(W, h, w) {
+  const mine = w.a === h.id, [sa, sb] = strength(W, w), tide = mine ? w.tide : -w.tide;
+  return `${tide > .25 ? 'Winning' : tide < -.25 ? 'Losing' : 'Even'}. You ${gold((mine ? sa : sb) * 1000)} soldiers, they ${gold((mine ? sb : sa) * 1000)}, allies included`;
+}
 
 const ACTIONS = {
   marry: {
@@ -1515,10 +1547,39 @@ const ACTIONS = {
   war: {
     big: true, group: 'power', kind: 'region', label: 'March to war', hint: 'A ruling house can take a neighbouring land by force. War costs gold, lives and the land itself.',
     targets: borders, cost: (W, h) => unit(h) * 2,
-    note: (W, h, r) => `Held by House ${house(W, r.ruler).name}: ${gold((house(W, r.ruler).levy + allyAid(W, house(W, r.ruler), h)) * 1000)} soldiers with allies. You: ${gold((h.levy + allyAid(W, h, house(W, r.ruler))) * 1000)} with allies`,
+    note(W, h, r) {
+      const b = house(W, r.ruler), n = fronts(W, h).length, split = sum(fronts(W, h), w => (w.main?.includes(h.id) ? CFG.mainFront : 1)) + 1;
+      return `Held by House ${b.name}: about ${gold((b.levy / (fronts(W, b).length + 1) + allyAid(W, b, h)) * 1000)} soldiers with allies. You would send ${gold((h.levy / split + allyAid(W, h, b)) * 1000)}${n ? `, because your soldiers are shared with ${n} other war${n === 1 ? '' : 's'}` : ''}`;
+    },
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : h.thrones ? 'Too far away. You can march only on a land next to one you rule.' : 'Only a house that rules a land can march.'),
     why: (W, h, r) => (tied(W, h, house(W, r.ruler)) ? 'You are joined to its ruler by marriage' : W.wars.some(w => w.r === r.i) ? 'There is already war here' : ''),
     run: (W, h, r) => startWar(W, h, r),
+  },
+  reinforce: {
+    group: 'power', kind: 'region', label: 'Name a main front', hint: `Your soldiers are shared equally among your wars. The main front gets ${CFG.mainFront} shares and the others one each.`,
+    targets: (W, h) => (fronts(W, h).length > 1 ? fronts(W, h).map(w => W.regions[w.r]) : []),
+    why: (W, h, r) => (warAt(W, h, r).main?.includes(h.id) ? 'Already your main front' : ''),
+    note: (W, h, r) => frontLine(W, h, warAt(W, h, r)),
+    run(W, h, r) { for (const w of fronts(W, h)) w.main = (w.main ?? []).filter(id => id !== h.id).concat(w.r === r.i ? [h.id] : []); },
+  },
+  assault: {
+    big: true, group: 'power', kind: 'region', label: 'Stake it on one battle', hint: 'Force a decisive battle in a war you are in. The stronger side usually wins, and the war swings hard either way. Once a year.',
+    targets: (W, h) => fronts(W, h).map(w => W.regions[w.r]), cost: (W, h) => unit(h) * 4,
+    why: (W, h, r) => (warAt(W, h, r).struck === W.year ? 'A battle was already forced here this year' : ''),
+    note(W, h, r) { const w = warAt(W, h, r), [sa, sb] = strength(W, w); return `${pct((w.a === h.id ? sa : sb) / (sa + sb + 1e-9))} chance to win it. ${frontLine(W, h, w)}`; },
+    run: (W, h, r) => assault(W, h, warAt(W, h, r)),
+  },
+  yield: {
+    big: true, group: 'power', kind: 'region', label: 'Pay them to go home', hint: 'End a war against you by paying the attacker. They refuse if they are winning clearly.',
+    targets: (W, h) => W.wars.filter(w => w.b === h.id && w.kind === 'war').map(w => W.regions[w.r]), cost: (W, h) => unit(h) * 6,
+    why: (W, h, r) => (warAt(W, h, r).tide >= .5 ? 'They are winning and will not take gold' : ''),
+    note: (W, h, r) => frontLine(W, h, warAt(W, h, r)),
+    run(W, h, r) {
+      const w = warAt(W, h, r), a = house(W, w.a);
+      a.gold += Math.ceil(unit(h) * 6); lose(h, 5);
+      W.wars = W.wars.filter(x => x !== w);
+      note(W, `House ${h.name} pays House ${a.name} to end the war for ${land(r)}.`, { h: h.id, x: a.id, r: r.i, w: 1 });
+    },
   },
   peace: {
     big: true, group: 'power', kind: 'region', label: 'Call off a war', hint: 'Ends a war you started, at a cost in prestige.',
@@ -1569,7 +1630,7 @@ function perform(W, h, id, t) {
   return true;
 }
 
-return { ACTIONS, cost, barred, perform };
+return { frontLine, ACTIONS, cost, barred, perform };
 })();
 __m['js/sim/ai.js'] = (() => {
 // How the other houses decide what to do: a few times a decade each tries one action its head's trait favours.
@@ -2511,9 +2572,9 @@ __m['js/ui/views.js'] = (() => {
 const { BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
-const { sum, gold, people, pct } = __m['js/sim/util.js'];
+const { sum, clamp, gold, people, pct } = __m['js/sim/util.js'];
 const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear } = __m['js/sim/state.js'];
-const { ACTIONS, cost, barred } = __m['js/sim/actions.js'];
+const { ACTIONS, cost, barred, frontLine } = __m['js/sim/actions.js'];
 const { heirOf, unwed } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
 const { GOALS, goalLine } = __m['js/sim/goals.js'];
@@ -2606,6 +2667,13 @@ const detail = (W, a, t) => (a.note ? `<small>${esc(a.note(W, me(W), t))}</small
 const feud = W => (W.rival && !house(W, W.rival.id).dead ? `<p class="state"><b>Your rival: ${ref(house(W, W.rival.id))} (${REGIONS[house(W, W.rival.id).seat].name}).</b> ${esc(W.rival.why)}</p>` : '');
 
 
+// One war the player is in: where, against whom, how long, a bar for how it is going and the soldiers on each side.
+function front(W, h, w) {
+  const mine = w.a === h.id, tide = clamp((mine ? w.tide : -w.tide), -1, 1), years = W.year - w.from;
+  return `<div class="front"><b>${place(w.r)}${w.main?.includes(h.id) ? ' <em>Main front</em>' : ''}</b><small>${mine ? 'You attack' : 'You defend against'} ${ref(house(W, mine ? w.b : w.a), true)} · ${years} year${years === 1 ? '' : 's'}</small>
+    <div class="tide" role="img" aria-label="How the war is going"><i style="width:${Math.round((tide + 1) * 50)}%"></i></div><small>${esc(frontLine(W, h, w))}</small></div>`;
+}
+
 // One button that runs a bulk action on every target the house can pay for, cheapest first.
 function affordable(W, id) {
   const h = me(W), open = ACTIONS[id].targets(W, h).filter(t => !ACTIONS[id].why?.(W, h, t)).sort((a, b) => cost(W, h, id, a) - cost(W, h, id, b));
@@ -2677,8 +2745,8 @@ function group(W, g) {
     + actionSection(W, 'pact', true) + actionSection(W, 'unpact', !!pactsOf(W, h).length);
   const wars = W.wars.filter(w => w.a === h.id || w.b === h.id);
   return intro + feud(W) + boxes(box('Soldiers', soldiers(h)), box('Soldiers from allies', gold(allyAid(W, h) * 1000)), box('Prestige', Math.round(h.prestige)), box('Wars you are in', wars.length))
-    + (wars.length ? `<section><h3>${UI.activeWars}</h3><ul>${rows(wars, w => `<li><span>${place(w.r)}<small>${ref(house(W, w.a === h.id ? w.b : w.a), true)}</small></span>${icon('power')}</li>`)}</ul></section>` : state('shield', UI.noWars, ''))
-    + rows(['war', 'coup', 'purge', 'peace', 'gift', 'slander', 'stir', 'press', 'bomb'], id => actionSection(W, id));
+    + (wars.length ? `<section class="fronts"><h3>${UI.activeWars}</h3>${rows(wars, w => front(W, h, w))}</section>` : state('shield', UI.noWars, ''))
+    + rows([...(wars.length ? ['reinforce', 'assault', 'yield', 'peace'] : []), 'war', 'coup', 'purge', 'gift', 'slander', 'stir', 'press', 'bomb'], id => actionSection(W, id));
 }
 
 // What the player can do to one fixed land or house, for that land's or house's own sheet. Moves that cannot reach
