@@ -448,7 +448,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:09 PM ET · 4ea38df';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:16 PM ET · 678a8c7';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -1040,6 +1040,10 @@ function newHouse(W, r, o = {}) {
 
 function bury(W, h) {
   h.dead = W.year; h.kids = []; h.op = {}; h.ties = {};
+  if (h.id !== W.player && W.pacts.some(p => (p.a === h.id && p.b === W.player) || (p.b === h.id && p.a === W.player))) {   // the player is told, never left to find a route gone
+    note(W, `House ${W.houses[W.player].name} loses its trade route with House ${h.name}, which is no more.`, { h: W.player, x: h.id, r: h.seat, w: 0 });
+    W.cards.push({ type: 'news', title: 'A trade route is lost', txt: `House ${h.name} is no more, and your trade route with it is gone. You have a route free: open another under Realm, Trade.` });
+  }
   W.pacts = W.pacts.filter(p => p.a !== h.id && p.b !== h.id);
   W.wars = W.wars.filter(w => w.a !== h.id && w.b !== h.id);
 }
