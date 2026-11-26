@@ -422,6 +422,9 @@ button.off { opacity:.5; }
 .jobs-legend b { color:var(--ink); } .jobs-legend i { font-style:normal; color:#d9a58a; } .jobs-legend span { display:block; color:#8fd9a6; }
 .legend-note { font-size:12.5px; color:var(--dim); margin:0 2px 10px; line-height:1.5; }
 .child>small.doing { color:#8fd9a6; }
+.land-list .mood { display:flex; flex-wrap:wrap; gap:4px 6px; grid-column:1/-1; margin-top:4px; text-transform:none; letter-spacing:0; font-weight:500; }
+.land-list .mood i { font-style:normal; font-size:11.5px; padding:2px 6px; border-radius:5px; background:#17382a; color:#9fe0b3; } .land-list .mood i.down { background:#3a2020; color:#f0b0a3; }
+.action-section>.legend-note { margin:10px 12px; }
 </style>
 </head>
 <body>
@@ -445,7 +448,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:01 PM ET · 4384092';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:05 PM ET · 9a4a6b8';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -509,6 +512,7 @@ const CFG = {
   // capped at cap, then scaled by how loyal that land is (calm at loyalty 75+). At most `most` lands go in one succession.
   split: { base: .04, per: .012, ability: .006, cap: .3, most: 3 },
   commanderRisk: .03, restless: .12,   // yearly chance a commander dies at war; added chance a far land breaks away under a passed-over governor
+  feastRest: 10, feastLift: 14,   // years between great feasts, and the loyalty one adds (it fades by a tenth a year)
   mainFront: 3,          // weight of the front a house names its main effort; every other front weighs 1
   goalGold: 5, goalPrestige: 10,   // reward for a ruler's goal: gold in price units, and prestige
   rivalRest: 15,         // years a rival waits after striking at the player before it strikes again
@@ -637,7 +641,7 @@ const UI = {
   knowledgeUnit: 'Equivalent real-history year', perYear: 'a year', funding: 'Research funding', pacePending: 'Measured after the first year',
   childrenCount: n => `${n} ${n === 1 ? 'child' : 'children'}`,
   noAllies: 'No marriage alliances yet', noWars: 'Your house is at peace.', activeWars: 'Your wars',
-  lands: 'Your lands', branchLocked: 'Needs a grown, unmarried child who is not your named heir.',
+  lands: 'Your lands and their loyalty', branchLocked: 'Needs a grown, unmarried child who is not your named heir.',
   ranking: 'Great houses', rank: 'Your standing', globalKnowledge: 'World knowledge',
   filter: 'Find a house or land', settings: 'Game settings', music: 'Music', title: 'Title screen',
   status: 'Action result', closePreview: 'Close house preview', yearsAway: n => `About ${n} years at the current pace`,
@@ -1330,12 +1334,20 @@ function learn(W, r, R, aim) {
   });
 }
 
+// Everything that pushes the loyalty of house h's followers in land r, as [label, points]. Their loyalty moves an eighth
+// of the way toward the total each year. The labels are shown to the player, so this is the one place the rule lives.
+function mood(W, r, h) {
+  const sh = r.shares[h.id], rules = r.ruler === h.id;
+  return [['Starting point', 62], ['A just head', is(h, 'Just') ? 10 : 0], ['Your tax', -(h.tax - .2) * 150], ['Size of your following', -sh.s * CFG.sizeDrag],
+    ['Feasts, building and events', sh.favor], ['War damage', -r.waste * 40], ['Plague', r.plague ? -8 : 0], ['You rule here', rules ? 4 : 0], ['Your governor', rules ? job(h, 'governor') : 0]];
+}
+
 // Followers judge their house every year, and drift toward the best-loved house in the land.
 function tend(W, r) {
   const hs = locals(W, r);
   for (const h of hs) {
     const sh = r.shares[h.id];
-    const want = 62 + (is(h, 'Just') ? 10 : 0) - (h.tax - .2) * 150 - sh.s * CFG.sizeDrag + sh.favor - r.waste * 40 - (r.plague ? 8 : 0) + (r.ruler === h.id ? 4 + job(h, 'governor') : 0);
+    const want = sum(mood(W, r, h), p => p[1]);
     sh.loy = clamp(sh.loy + (want - sh.loy) * .12 + range(W, -1.5, 1.5), 0, 100);
     sh.favor *= .9;
   }
@@ -1366,7 +1378,7 @@ function unrest(W, r, R) {
   }
 }
 
-return { stepRegion };
+return { stepRegion, mood };
 })();
 __m['js/sim/conflict.js'] = (() => {
 // Coups, civil wars and wars between realms.
@@ -1501,7 +1513,7 @@ const work = k => ({
   },
 });
 
-const feastLift = (W, h) => (W.year - (h.feast ?? -99) < 5 ? 7 : 14);   // feasts close together are worth less
+const trades = (W, h, t) => (pactsOf(W, h).includes(t) ? ' You have a trade route with them.' : '');
 
 // The war house h is fighting in land r, and a line saying how it stands for h.
 const warAt = (W, h, r) => fronts(W, h).find(w => w.r === r.i);
@@ -1558,10 +1570,11 @@ const ACTIONS = {
     run(W, h, v) { h.tax = v; },
   },
   feast: {
-    group: 'goys', kind: 'self', label: 'Hold a great feast', verb: 'Hold feast', hint: 'Lifts the loyalty of all your followers for a few years. One a year, and a second within five years does half as much.', cost: (W, h) => unit(h),
-    why: (W, h) => (h.feast === W.year ? 'You have already feasted this year' : ''),
-    note: (W, h) => `Loyalty +${feastLift(W, h)} in every land you hold, fading over a few years`,
-    run(W, h) { for (const r of holds(W, h)) r.shares[h.id].favor += feastLift(W, h); h.feast = W.year; },
+    group: 'goys', kind: 'self', label: 'Hold a great feast', verb: 'Hold feast', hint: `A rare celebration that lifts the loyalty of all your followers for some years. Your followers expect one no more than every ${CFG.feastRest} years. For lasting loyalty, look at what is pushing each land under Your lands.`,
+    cost: (W, h) => unit(h) * 2,
+    why: (W, h) => (W.year - (h.feast ?? -99) < CFG.feastRest ? `The next great feast can be held in ${h.feast + CFG.feastRest}` : ''),
+    note: () => `Loyalty +${CFG.feastLift} in every land you hold, fading by a tenth each year`,
+    run(W, h) { for (const r of holds(W, h)) r.shares[h.id].favor += CFG.feastLift; h.feast = W.year; },
   },
   farms: work('farms'), schools: work('schools'), roads: work('roads'),
   pact: {
@@ -1608,7 +1621,7 @@ const ACTIONS = {
   coup: {
     big: true, group: 'power', kind: 'region', label: 'Seize a throne', verb: 'Seize', hint: 'Plot against the ruler of a land where you have a following. It may work in a night, fail, or become civil war.',
     targets: (W, h) => holds(W, h).filter(r => r.ruler !== h.id), cost: (W, h) => unit(h) * 2,
-    note: (W, h, r) => `Ruled by House ${house(W, r.ruler).name}. Your power is ${pct(h.power / (house(W, r.ruler).power || 1))} of theirs`,
+    note: (W, h, r) => `Ruled by House ${house(W, r.ruler).name}. Your power is ${pct(h.power / (house(W, r.ruler).power || 1))} of theirs.${trades(W, h, house(W, r.ruler))}`,
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : 'You need a following here first.'),
     why: (W, h, r) => (tied(W, h, house(W, r.ruler)) ? 'You are joined to its ruler by marriage' : W.wars.some(w => w.r === r.i) ? 'There is already war here' : ''),
     run: (W, h, r) => coup(W, h, r),
@@ -1616,7 +1629,7 @@ const ACTIONS = {
   purge: {
     big: true, group: 'power', kind: 'house', label: 'Drive out a house', verb: 'Drive out', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, though your own grow less loyal. Lose and it rises against you in civil war.',
     targets: (W, h) => alive(W).filter(o => o !== h && ruled(W, h).some(r => r.shares[o.id])), cost: (W, h) => unit(h) * 3,
-    note: (W, h, t) => `${pct(routOdds(h, t))} chance. It holds ${ruled(W, h).filter(r => r.shares[t.id]).map(r => `${pct(r.shares[t.id].s)} of ${land(r)}`).join(', ')}`,
+    note: (W, h, t) => `${pct(routOdds(h, t))} chance. It holds ${ruled(W, h).filter(r => r.shares[t.id]).map(r => `${pct(r.shares[t.id].s)} of ${land(r)}`).join(', ')}.${trades(W, h, t)}`,
     reach: (W, h) => (h.thrones ? 'It has no following in a land you rule.' : 'Only a house that rules a land can drive another out.'),
     why: (W, h, t) => (tied(W, h, t) ? 'You are joined to it by marriage' : atWar(W, h, t) ? 'You are already at war with it' : ''),
     run: (W, h, t) => purge(W, h, t),
@@ -1626,7 +1639,7 @@ const ACTIONS = {
     targets: borders, cost: (W, h) => unit(h) * 2,
     note(W, h, r) {
       const b = house(W, r.ruler), n = fronts(W, h).length, split = sum(fronts(W, h), w => (w.main?.includes(h.id) ? CFG.mainFront : 1)) + 1;
-      return `Held by House ${b.name}: about ${gold((b.levy / (fronts(W, b).length + 1) + allyAid(W, b, h)) * 1000)} soldiers with allies. You would send ${gold((h.levy / split + allyAid(W, h, b)) * 1000)}${n ? `, because your soldiers are shared with ${n} other war${n === 1 ? '' : 's'}` : ''}`;
+      return `Held by House ${b.name}: about ${gold((b.levy / (fronts(W, b).length + 1) + allyAid(W, b, h)) * 1000)} soldiers with allies. You would send ${gold((h.levy / split + allyAid(W, h, b)) * 1000)}${n ? `, because your soldiers are shared with ${n} other war${n === 1 ? '' : 's'}` : ''}.${trades(W, h, b)}`;
     },
     reach: (W, h, r) => (r.ruler === h.id ? 'You already rule here.' : h.thrones ? 'Too far away. You can march only on a land next to one you rule.' : 'Only a house that rules a land can march.'),
     why: (W, h, r) => (tied(W, h, house(W, r.ruler)) ? 'You are joined to its ruler by marriage' : W.wars.some(w => w.r === r.i) ? 'There is already war here' : ''),
@@ -2659,6 +2672,7 @@ const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, r
 const { ACTIONS, cost, barred, frontLine } = __m['js/sim/actions.js'];
 const { heirOf, unwed, splitRisk } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
+const { mood } = __m['js/sim/realm.js'];
 const { GOALS, goalLine } = __m['js/sim/goals.js'];
 const { esc, tint } = __m['js/ui/dom.js'];
 const { icon, crest, portrait, illustration } = __m['js/ui/art.js'];
@@ -2839,7 +2853,8 @@ function group(W, g) {
 
   if (g === 'goys') return realmTabs(g) + intro + boxes(box(LABEL.folk, people(followers(W, h))), box('Loyal', `${loyalty(W, h)}%`, `Revolt risk below ${CFG.revoltAt}%`))
     + taxOptions(W) + actionSection(W, 'feast', true)
-    + `<details class="action-section" data-section="lands"><summary><span>${UI.lands}</span><small>${holds(W, h).length}</small>${icon('chevron')}</summary><ul class="land-list">${rows(holds(W, h), r => `<li>${place(r.i)}<span>${pct(r.shares[h.id]?.s ?? 0)} share · ${Math.round(r.shares[h.id]?.loy ?? 0)}% loyal</span></li>`)}</ul></details>`
+    + `<details class="action-section" data-section="lands"><summary><span>${UI.lands}</span><small>${holds(W, h).length}</small>${icon('chevron')}</summary><p class="legend-note">Loyalty moves a little each year toward the level shown. Lower tax, a smaller share, building and a governor raise it; war damage and plague lower it.</p><ul class="land-list">${rows(holds(W, h), r => { const parts = mood(W, r, h).filter(p => Math.abs(p[1]) >= .5), want = clamp(sum(parts, p => p[1]), 0, 100), now = Math.round(r.shares[h.id].loy);
+      return `<li>${place(r.i)}<span>${pct(r.shares[h.id].s)} share · ${now}% loyal, ${Math.round(want) > now ? 'rising' : Math.round(want) < now ? 'falling' : 'steady'} toward ${Math.round(want)}%</span><small class="mood">${rows(parts, ([label, n]) => `<i class="${n < 0 ? 'down' : ''}">${label} ${n > 0 ? '+' : '−'}${Math.round(Math.abs(n))}</i>`)}</small></li>`; })}</ul></details>`
     + rows(['farms', 'schools', 'roads'], id => actionSection(W, id));
   if (g === 'trade') return realmTabs(g) + `<div class="feature-hero">${illustration('market')}<div><small>${UI.nav.realm}</small><h2>Trade</h2><p>${UI.subtitles.trade}</p></div></div>`
     + boxes(box('Trade routes open', `${pactsOf(W, h).length} / ${routeCap(W, h)}`), box('Trade income', `+${gold(h.trade)}`, 'gold / year'))
