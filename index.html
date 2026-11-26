@@ -448,7 +448,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:05 PM ET · 9a4a6b8';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:09 PM ET · 4ea38df';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -507,7 +507,7 @@ const CFG = {
   price: 3,              // gold per square root of yearly income: prices rise far slower than wealth
   storyGap: [9, 16],     // years between story events
   storyRest: 45,         // years before the same story may be told again
-  tutor: { base: 2, per: .5, rest: 5, odds: [.25, .75, .95] },   // a tutor costs (base + per x ability) price units; a child rests `rest` years between tutors; odds: nothing, +1, +2, else +3
+  tutor: { from: 6, until: 21, base: 2, per: .5, rest: 5, odds: [.25, .75, .95] },   // a tutor costs (base + per x ability) price units; a child aged `from` up to (not including) `until` can be taught, and rests `rest` years between tutors; odds: nothing, +1, +2, else +3
   // Lands away from the seat may break away when a head dies: chance = base + per x far lands - ability x the new head's ability,
   // capped at cap, then scaled by how loyal that land is (calm at loyalty 75+). At most `most` lands go in one succession.
   split: { base: .04, per: .012, ability: .006, cap: .3, most: 3 },
@@ -1542,9 +1542,9 @@ const ACTIONS = {
     run(W, h, kid) { const was = kid.job === k; for (const x of h.kids) if (x.job === k || x === kid) delete x.job; if (!was) kid.job = k; },   // choosing the holder again relieves them
   }])),
   tutor: {
-    big: true, group: 'family', kind: 'kid', label: 'Hire a tutor', verb: 'Tutor', hint: `Pay a master to teach a child. It may raise their ability by 1, 2 or 3, or do nothing. The abler the child, the dearer the master. A child rests ${CFG.tutor.rest} years between tutors.`,
+    big: true, group: 'family', kind: 'kid', label: 'Hire a tutor', verb: 'Tutor', hint: `Pay a master to teach a child aged ${CFG.tutor.from} to ${CFG.tutor.until - 1}. It may raise their ability by 1, 2 or 3, or do nothing. The abler the child, the dearer the master. A child rests ${CFG.tutor.rest} years between tutors.`,
     targets: (W, h) => h.kids, cost: (W, h, k) => unit(h) * (CFG.tutor.base + CFG.tutor.per * k.a),
-    why: (W, h, k) => (k.a >= 10 ? 'As able as anyone alive' : W.year - k.b < 6 ? 'Too young to be taught' : W.year - (k.taught ?? -99) < CFG.tutor.rest ? `Resting until ${k.taught + CFG.tutor.rest}` : ''),
+    why: (W, h, k) => (k.a >= 10 ? 'As able as anyone alive' : W.year - k.b < CFG.tutor.from ? `Too young to be taught. Tutors take children from ${CFG.tutor.from}` : W.year - k.b >= CFG.tutor.until ? `Too old to be taught. Tutors take children under ${CFG.tutor.until}` : W.year - (k.taught ?? -99) < CFG.tutor.rest ? `Resting until ${k.taught + CFG.tutor.rest}` : ''),
     run(W, h, k) {
       const roll = rnd(W), i = CFG.tutor.odds.findIndex(p => roll < p), gain = Math.min(10 - k.a, i < 0 ? 3 : i);
       k.taught = W.year; k.a += gain;
@@ -2823,7 +2823,7 @@ function research(W, h) {
 function children(W, h) {
   const heir = heirOf(W, h), tap = (id, i, label, on) => `<button data-act="${id}" data-t="${i}"${on ? ' class="on"' : off(barred(W, h, id, h.kids[i]))}>${label}</button>`;
   // What each job does, always in view above the children, with who holds it now.
-  const legend = `<div class="jobs-legend">${rows(Object.entries(JOBS), ([j, job]) => { const who = h.kids.find(k => k.job === j); return `<p><b>${job.name}.</b> ${job.short}${job.risk ? ` <i>${job.risk}</i>` : ''}${who ? `<span>${esc(who.n)}: ${job.effect(who.a)}</span>` : ''}</p>`; })}</div><p class="legend-note">One child aged ${CFG.adult} or older per job. Abler children do more. Tap a job again to relieve them. A tutor may add 1 to 3 ability, or nothing; a child rests ${CFG.tutor.rest} years between tutors.</p>`;
+  const legend = `<div class="jobs-legend">${rows(Object.entries(JOBS), ([j, job]) => { const who = h.kids.find(k => k.job === j); return `<p><b>${job.name}.</b> ${job.short}${job.risk ? ` <i>${job.risk}</i>` : ''}${who ? `<span>${esc(who.n)}: ${job.effect(who.a)}</span>` : ''}</p>`; })}</div><p class="legend-note">One child aged ${CFG.adult} or older per job. Abler children do more. Tap a job again to relieve them. A tutor can teach a child aged ${CFG.tutor.from} to ${CFG.tutor.until - 1} and may add 1 to 3 ability, or nothing; a child rests ${CFG.tutor.rest} years between tutors.</p>`;
   const cards = rows(h.kids, (k, i) => {
     const age = W.year - k.b, fee = cost(W, h, 'tutor', k), stuck = barred(W, h, 'tutor', k);
     return `<div class="child"><b>${esc(k.n)}${k === heir ? '<em>Heir</em>' : ''}${k.job ? `<em class="job">${JOBS[k.job].name}</em>` : ''}</b>
