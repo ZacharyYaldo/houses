@@ -445,7 +445,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 2:19 PM ET · fd215c2';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:23 PM ET · d0ecda0';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -933,7 +933,10 @@ const knows = (W, h, name) => W.regions[h.seat].know >= techYear(name);
 // The highest level of scholars a house may fund with what its seat knows.
 const fundCap = (W, h) => (knows(W, h, 'The university') ? 3 : knows(W, h, 'Paper') ? 2 : 1);
 const workCap = r => CFG.maxWork + sum(UNLOCKS, u => (u.work && r.know >= techYear(u.tech) ? u.work : 0));
-const routeCap = (W, h) => 2 + W.regions[h.seat].works.roads + (is(h, 'Merchant') ? 2 : 0) + sum(UNLOCKS, u => (u.routes && knows(W, h, u.tech) ? u.routes : 0));
+// How many trade routes a house may hold, as [label, routes] so the player can be shown where the limit comes from.
+const routeParts = (W, h) => [['every house', 2], ['roads in your seat', W.regions[h.seat].works.roads], ['a Merchant head', is(h, 'Merchant') ? 2 : 0],
+  ['discoveries', sum(UNLOCKS, u => (u.routes && knows(W, h, u.tech) ? u.routes : 0))]];
+const routeCap = (W, h) => sum(routeParts(W, h), p => p[1]);
 // The price unit. It grows with the square root of income, so a richer house can afford more of everything.
 const unit = h => CFG.price * Math.sqrt(Math.max(1, h.inc));
 // Soldiers that houses joined to h by marriage send to its wars. They stay home if also joined to the foe.
@@ -1113,7 +1116,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, job, base, mil, tied, pactsOf, atWar, opinion, sway, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1121,7 +1124,7 @@ const { CFG } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { OURS } = __m['js/data/history.js'];
 const { rnd, chance, clamp, curve, maxBy } = __m['js/sim/util.js'];
-const { alive, holds, ruled, tied, sway, note, newPerson, newHouse, enthrone, moveShare, dropShare, setRuler, bury } = __m['js/sim/state.js'];
+const { alive, holds, ruled, tied, sway, note, newPerson, newHouse, enthrone, moveShare, dropShare, setRuler, bury, routeCap } = __m['js/sim/state.js'];
 
 const age = (W, p) => W.year - p.b;
 const grown = (W, h) => h.kids.filter(k => age(W, k) >= CFG.adult);
@@ -1158,7 +1161,7 @@ function stepFamily(W, h) {
 }
 
 function succeed(W, h, how) {
-  const old = h.head, heir = heirOf(W, h), mine = h.id === W.player;
+  const old = h.head, heir = heirOf(W, h), mine = h.id === W.player, routes = routeCap(W, h);
   if (mine) W.chron.at(-1).to = W.year;
   if (!heir) return lineFails(W, h, old, how);
   const restless = h.kids.some(k => k.job === 'governor' && k !== heir);
@@ -1167,7 +1170,7 @@ function succeed(W, h, how) {
   for (let n = Math.min(3, Math.floor((clamp(age(W, heir), 18, 48) - 18) / 8)); n > 0; n--) h.kids.push(newPerson(W, h.cul, W.year - Math.floor(rnd(W) * 14), h.head, h));
   enthrone(W, h);
   note(W, `${old.n} of House ${h.name} ${how}. ${heir.n} the ${heir.t} now leads.`, { h: h.id, r: h.seat, w: 0 });
-  if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}. The family is now ${heir.n}'s own children (${h.kids.length}); ${heir.n}'s brothers and sisters leave the line.` });
+  if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}. The family is now ${heir.n}'s own children (${h.kids.length}); ${heir.n}'s brothers and sisters leave the line.${routeCap(W, h) === routes ? '' : ` Your limit on trade routes goes from ${routes} to ${routeCap(W, h)}, because a Merchant head adds 2.`}` });
   breakAway(W, h, restless);
 }
 
@@ -2669,7 +2672,7 @@ const { JOBS, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI }
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct } = __m['js/sim/util.js'];
-const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear } = __m['js/sim/state.js'];
+const { house, alive, holds, locals, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear, routeParts } = __m['js/sim/state.js'];
 const { ACTIONS, cost, barred, frontLine } = __m['js/sim/actions.js'];
 const { heirOf, unwed, splitRisk } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
@@ -2858,6 +2861,7 @@ function group(W, g) {
     + rows(['farms', 'schools', 'roads'], id => actionSection(W, id));
   if (g === 'trade') return realmTabs(g) + `<div class="feature-hero">${illustration('market')}<div><small>${UI.nav.realm}</small><h2>Trade</h2><p>${UI.subtitles.trade}</p></div></div>`
     + boxes(box('Trade routes open', `${pactsOf(W, h).length} / ${routeCap(W, h)}`), box('Trade income', `+${gold(h.trade)}`, 'gold / year'))
+    + `<p class="legend-note">Your limit of ${routeCap(W, h)}: ${routeParts(W, h).filter(p => p[1]).map(p => `${p[1]} from ${p[0]}`).join(', ')}. Build roads in your seat (${REGIONS[h.seat].name}) to raise it.${pactsOf(W, h).length > routeCap(W, h) ? ' You hold more than your limit: you keep them, but cannot open another until you are under it.' : ''}</p>`
     + actionSection(W, 'pact', true) + actionSection(W, 'unpact', !!pactsOf(W, h).length);
   const wars = W.wars.filter(w => w.a === h.id || w.b === h.id);
   return intro + feud(W) + boxes(box('Soldiers', soldiers(h)), box('Soldiers from allies', gold(allyAid(W, h) * 1000)), box('Prestige', Math.round(h.prestige)), box('Wars you are in', wars.length))
