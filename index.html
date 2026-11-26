@@ -417,8 +417,9 @@ summary::-webkit-details-marker { display:none; }
 @keyframes toast { 0%,80% { opacity:1; } 100% { opacity:0; } }
 button.off { opacity:.5; }
 .action-result.no { border-color:#a8703f; background:#3b2415; color:#f6d3ad; font-size:13.5px; }
-.job-list.legend { padding:11px 12px; margin-bottom:6px; border:1px solid var(--line); border-radius:10px; background:#0f1e31; }
-.job-list.legend i { font-style:normal; color:#d9a58a; } .job-list.legend span { display:block; margin-top:2px; color:#8fd9a6; }
+.jobs-legend { display:block; padding:11px 12px; margin-bottom:6px; border:1px solid var(--line); border-radius:10px; background:#0f1e31; }
+.jobs-legend p { display:block; margin:0 0 8px; font-size:13px; line-height:1.5; color:#b9c7d8; } .jobs-legend p:last-child { margin:0; }
+.jobs-legend b { color:var(--ink); } .jobs-legend i { font-style:normal; color:#d9a58a; } .jobs-legend span { display:block; color:#8fd9a6; }
 .legend-note { font-size:12.5px; color:var(--dim); margin:0 2px 10px; line-height:1.5; }
 .child>small.doing { color:#8fd9a6; }
 </style>
@@ -444,7 +445,7 @@ button.off { opacity:.5; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 1:57 PM ET · 7873a7b';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 2:01 PM ET · 4384092';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -2808,7 +2809,7 @@ function research(W, h) {
 function children(W, h) {
   const heir = heirOf(W, h), tap = (id, i, label, on) => `<button data-act="${id}" data-t="${i}"${on ? ' class="on"' : off(barred(W, h, id, h.kids[i]))}>${label}</button>`;
   // What each job does, always in view above the children, with who holds it now.
-  const legend = `<ul class="job-list legend">${rows(Object.entries(JOBS), ([j, job]) => { const who = h.kids.find(k => k.job === j); return `<li><b>${job.name}</b> ${job.short}${job.risk ? ` <i>${job.risk}</i>` : ''}${who ? `<span>${esc(who.n)}: ${job.effect(who.a)}</span>` : ''}</li>`; })}</ul><p class="legend-note">One child aged ${CFG.adult} or older per job. Abler children do more. Tap a job again to relieve them. A tutor may add 1 to 3 ability, or nothing; a child rests ${CFG.tutor.rest} years between tutors.</p>`;
+  const legend = `<div class="jobs-legend">${rows(Object.entries(JOBS), ([j, job]) => { const who = h.kids.find(k => k.job === j); return `<p><b>${job.name}.</b> ${job.short}${job.risk ? ` <i>${job.risk}</i>` : ''}${who ? `<span>${esc(who.n)}: ${job.effect(who.a)}</span>` : ''}</p>`; })}</div><p class="legend-note">One child aged ${CFG.adult} or older per job. Abler children do more. Tap a job again to relieve them. A tutor may add 1 to 3 ability, or nothing; a child rests ${CFG.tutor.rest} years between tutors.</p>`;
   const cards = rows(h.kids, (k, i) => {
     const age = W.year - k.b, fee = cost(W, h, 'tutor', k), stuck = barred(W, h, 'tutor', k);
     return `<div class="child"><b>${esc(k.n)}${k === heir ? '<em>Heir</em>' : ''}${k.job ? `<em class="job">${JOBS[k.job].name}</em>` : ''}</b>
