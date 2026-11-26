@@ -414,7 +414,7 @@ summary::-webkit-details-marker { display:none; }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 10:07 AM ET · 679a6a9';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 12:10 PM ET · ee25261';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -1058,10 +1058,27 @@ function dies(W, p, life) {
   return chance(W, a < 16 ? .6 / life : .25 / life + .02 * Math.exp((a - 45 - life / 2) / 7));
 }
 
+// Who inherits now, in a sentence for the player.
+function heirLine(W, h) {
+  const k = heirOf(W, h);
+  return k ? `Your heir is ${k.n}, aged ${age(W, k)}.` : 'You have no living child. If your head dies now, a cousin takes the name and your prestige is halved.';
+}
+
+// Remove the children `gone` picks out. The player is told: a line in the chronicle for any child, a popup for the heir.
+function lose(W, h, gone, how) {
+  const heir = heirOf(W, h), lost = h.kids.filter(gone);
+  if (!lost.length) return;
+  h.kids = h.kids.filter(k => !lost.includes(k));
+  if (h.id !== W.player) return;
+  for (const k of lost) note(W, `${k.n}, ${k === heir ? 'heir' : 'child'} of House ${h.name}, ${how} at ${age(W, k)}.`, { h: h.id, r: h.seat, w: 0 });
+  if (!lost.includes(heir)) return;
+  W.cards.push({ type: 'news', title: 'Your heir is dead', txt: `${heir.n} ${how} at ${age(W, heir)}. ${heirLine(W, h)}` });
+}
+
 function stepFamily(W, h) {
   const life = curve(OURS.life, W.regions[h.seat].know) + (W.council.aim === 'health' ? 3 : 0), a = age(W, h.head);
   if (a >= 18 && a <= 48 && h.kids.length < CFG.maxKids && chance(W, .2)) h.kids.push(newPerson(W, h.cul, W.year, h.head));
-  h.kids = h.kids.filter(k => !dies(W, k, life));
+  lose(W, h, k => dies(W, k, life), 'dies');
   if (dies(W, h.head, life)) succeed(W, h, 'dies');
 }
 
@@ -1073,7 +1090,7 @@ function succeed(W, h, how) {
   h.kids = Array.from({ length: Math.min(3, Math.floor((clamp(age(W, heir), 18, 48) - 18) / 8)) }, () => newPerson(W, h.cul, W.year - Math.floor(rnd(W) * 14), h.head));
   enthrone(W, h);
   note(W, `${old.n} of House ${h.name} ${how}. ${heir.n} the ${heir.t} now leads.`, { h: h.id, r: h.seat, w: 0 });
-  if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}.` });
+  if (mine) W.cards.push({ type: 'news', title: 'A new head of the house', txt: `${old.n} ${how} at ${age(W, old)}. ${heir.n} the ${heir.t}, ability ${heir.a}, now leads House ${h.name}. The family is now ${heir.n}'s own children (${h.kids.length}); ${heir.n}'s brothers and sisters leave the line.` });
   breakAway(W, h);
 }
 
@@ -1118,7 +1135,7 @@ function wed(W, a, b) {
   note(W, `House ${a.name} and House ${b.name} are joined by marriage.`, { h: a.id, x: b.id, r: a.seat });
 }
 
-return { grown, unwed, heirOf, stepFamily, succeed, wed };
+return { grown, unwed, heirOf, heirLine, lose, stepFamily, succeed, wed };
 })();
 __m['js/sim/nature.js'] = (() => {
 // Nature keeps our world's calendar: the same eruptions and plagues, in the same years.
@@ -1126,7 +1143,7 @@ const { RID, named } = __m['js/data/regions.js'];
 const { NATURE, MITIGATE } = __m['js/data/history.js'];
 const { chance, range, curve, people } = __m['js/sim/util.js'];
 const { locals, linked, note } = __m['js/sim/state.js'];
-const { succeed } = __m['js/sim/family.js'];
+const { succeed, lose } = __m['js/sim/family.js'];
 
 const STRIKE = {
   plague(W, n, k) {
@@ -1179,7 +1196,7 @@ function toll(W, r) {
   r.pop -= dead; W.plagues[k].dead += dead;
   for (const h of locals(W, r)) {
     if (h.dead || h.seat !== r.i || (h.id === W.player && W.fled === k)) continue;
-    h.kids = h.kids.filter(() => !chance(W, rate));
+    lose(W, h, () => chance(W, rate), 'dies of the plague');
     if (chance(W, rate)) succeed(W, h, 'dies of the sickness');
   }
   for (const j of new Set([...linked(W, r.i), ...W.trade[r.i]])) if (chance(W, .3)) infect(W, W.regions[j], k);
@@ -1403,12 +1420,13 @@ const ACTIONS = {
     group: 'family', kind: 'region', label: 'Plant a branch abroad', hint: `Send a grown child to win a following of ${LABEL.folk} in another land.`,
     targets: (W, h) => [...reach(W, h)].map(i => W.regions[i]).filter(r => !r.shares[h.id]), cost: (W, h) => unit(h) * 5,
     why: (W, h) => (spare(W, h).length ? '' : 'Needs a grown, unwed child who is not your named heir'),
-    note: (W, h, r) => `${people(r.pop)} ${LABEL.folk}, ${Object.keys(r.shares).length} houses, ruled by House ${house(W, r.ruler).name}`,
+    note: (W, h, r) => `${spare(W, h)[0] ? `Sends ${spare(W, h)[0].n}, who leaves your family. ` : ''}${people(r.pop)} ${LABEL.folk}, ${Object.keys(r.shares).length} houses, ruled by House ${house(W, r.ruler).name}`,
     reach: (W, h, r) => (r.shares[h.id] ? 'You already have a following here.' : 'Too far away. You can plant a branch only in a land next to one where you have a following.'),
     run(W, h, r) {
-      h.kids.splice(h.kids.indexOf(spare(W, h)[0]), 1);
+      const k = spare(W, h)[0];
+      h.kids.splice(h.kids.indexOf(k), 1);
       addShare(r, h.id, .06);
-      note(W, `House ${h.name} plants a branch in ${land(r)}.`, { r: r.i, h: h.id, w: 1 });
+      note(W, `House ${h.name} sends ${k.n} to plant a branch in ${land(r)}.`, { r: r.i, h: h.id, w: 1 });
     },
   },
   tax: {
@@ -1633,13 +1651,15 @@ const { CFG, LABEL } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, pick, range, maxBy, gold } = __m['js/sim/util.js'];
 const { house, alive, holds, locals, contacts, tied, sway, note, unit } = __m['js/sim/state.js'];
-const { grown, unwed, heirOf, wed, succeed } = __m['js/sim/family.js'];
+const { grown, unwed, heirOf, heirLine, wed, succeed } = __m['js/sim/family.js'];
 
 const me = W => house(W, W.player);
 const foe = W => (W.rival && !house(W, W.rival.id).dead ? house(W, W.rival.id) : null);
 const lose = (h, n) => { h.prestige = Math.max(0, h.prestige - n); };
 const favor = (W, h, by) => { for (const r of holds(W, h)) r.shares[h.id].favor += by; };
 const drop = (h, name) => { h.kids = h.kids.filter(k => k.n !== name); };
+// The player loses a child to a story: it is logged and shown as its own popup, with who inherits now.
+const mourn = (W, name, txt) => { drop(me(W), name); say(W, txt); W.cards.push({ type: 'news', title: `${name} is lost`, txt: `${txt} ${heirLine(W, me(W))}` }); };
 const pay = (W, n) => ({ bar: me(W).gold < n, hint: `Costs ${gold(n)} gold` });
 const spend = (W, n) => { me(W).gold -= n; };
 const say = (W, txt) => note(W, txt, { h: W.player, r: me(W).seat, w: 1 });
@@ -1680,7 +1700,7 @@ const STORIES = {
         { label: `Let ${c.heir} answer with steel`, hint: 'A duel. One of them may not walk away', run() {
           const roll = rnd(W), rv = foe(W);
           if (roll < .5) { drop(rv, c.them); me(W).prestige += 10; lose(rv, 10); say(W, `${c.heir} of House ${me(W).name} kills ${c.them} of House ${rv.name} in a duel.`); }
-          else if (roll < .75) { drop(me(W), c.heir); lose(me(W), 6); say(W, `${c.heir} of House ${me(W).name} is killed in a duel by ${c.them} of House ${rv.name}.`); }
+          else if (roll < .75) { lose(me(W), 6); mourn(W, c.heir, `${c.heir} of House ${me(W).name} is killed in a duel by ${c.them} of House ${rv.name}.`); }
           else { me(W).prestige += 4; say(W, `${c.heir} and ${c.them} fight to first blood and are pulled apart.`); }
         } },
         { label: 'Demand an apology in gold', hint: 'They pay only if you are the stronger house', run() {
@@ -1701,7 +1721,7 @@ const STORIES = {
         { label: 'Bless the match', hint: 'The two houses are joined and the feud ends', run() { const rv = foe(W); wed(W, me(W), rv); endFeud(W, 'in a wedding'); } },
         { label: 'Forbid it', hint: 'They may run away together', run() {
           sway(foe(W), me(W), -20);
-          if (chance(W, .35)) { drop(me(W), c.mine); drop(foe(W), c.theirs); say(W, `${c.mine} of House ${me(W).name} and ${c.theirs} of House ${foe(W).name} run away together and are not seen again.`); }
+          if (chance(W, .35)) { const txt = `${c.mine} of House ${me(W).name} and ${c.theirs} of House ${foe(W).name} run away together and are not seen again.`; drop(foe(W), c.theirs); mourn(W, c.mine, txt); }
         } },
         { label: `Hold ${c.theirs} for ransom`, hint: 'Gold now. Prestige falls and the feud deepens', run() {
           const fee = Math.ceil(unit(foe(W)) * 3);
@@ -1767,7 +1787,7 @@ const STORIES = {
           { label: 'Pay the debt', ...pay(W, cost), run() { spend(W, cost); } },
           { label: `Let ${c.heir} learn the hard way`, hint: `${c.heir} becomes a Wastrel`, run() { if (heir()) heir().t = 'Wastrel'; } },
           { label: `Send ${c.heir} to the army`, hint: `${c.heir} becomes Warlike, if they come back`, run() {
-            if (chance(W, .15)) { drop(me(W), c.heir); say(W, `${c.heir} of House ${me(W).name} dies on campaign, far from home.`); } else if (heir()) heir().t = 'Warlike';
+            if (chance(W, .15)) { mourn(W, c.heir, `${c.heir} of House ${me(W).name} dies on campaign, far from home.`); } else if (heir()) heir().t = 'Warlike';
           } },
         ],
       };
@@ -1798,7 +1818,7 @@ const STORIES = {
           { label: `Name ${c.kid} heir instead`, hint: `${c.heir} is passed over`, run() { me(W).kids.forEach(k => delete k.heir); if (find(c.kid)) find(c.kid).heir = true; } },
           { label: `Send ${c.kid} away`, hint: `You lose ${c.kid} for good`, run() { drop(me(W), c.kid); } },
           { label: 'Make them swear peace', hint: 'It may not hold', run() {
-            if (chance(W, .4)) { drop(me(W), c.heir); say(W, `${c.heir}, heir of House ${me(W).name}, is found dead. Nobody accuses ${c.kid} aloud.`); }
+            if (chance(W, .4)) { mourn(W, c.heir, `${c.heir}, heir of House ${me(W).name}, is found dead. Nobody accuses ${c.kid} aloud.`); }
           } },
         ],
       };
