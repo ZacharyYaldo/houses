@@ -409,7 +409,10 @@ summary::-webkit-details-marker { display:none; }
 .child-acts button.on { background:#2f6b4c; border-color:#5fbf78; color:#fff; }
 .child-acts button em { display:inline; font-style:normal; color:var(--gold); margin-left:6px; }
 .child-acts span { font-size:12px; color:var(--dim); } .child-acts span.why { color:var(--bad); }
-.posts { display:grid; grid-template-columns:repeat(4,auto); } .posts button { padding:6px 4px; }   /* the four posts, always on one line */
+.posts { display:grid; grid-template-columns:repeat(4,auto); align-items:stretch; } .posts button { padding:6px 4px; }   /* the four posts, always on one line */
+/* who holds a post now, under its name: it takes the button's width without widening it */
+.posts button small { display:block; width:0; min-width:100%; font-size:10px; line-height:1.25; letter-spacing:0; text-transform:none; color:var(--gold); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.posts button:has(small) { border-color:#8a6a2a; }
 .job-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; font-size:13px; color:#b9c7d8; } .job-list b { color:var(--ink); }
 #sheet>.action-result { animation:toast 2.6s ease-in forwards; }
 @keyframes toast { 0%,80% { opacity:1; } 100% { opacity:0; } }
@@ -449,7 +452,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 11:44 PM ET · f1f0007';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 11:54 PM ET · 322078e';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -1767,14 +1770,15 @@ return { startWar, coup, routOdds, purge, assault, stepWar };
 })();
 __m['js/sim/actions.js'] = (() => {
 // Everything a house can do. The player's buttons and the AI both go through this one table.
-// kind: what a target is (house | region | kid | option | self | deal, which reads its own target with read() and names it with key()). why() gives the reason a target is barred, or ''.
+// kind: what a target is (house | region | kid | option | self | deal, which reads its own target with read() and names it with key()).
+// swap: a warning when the action would take something from someone else; the player must tap twice to go through with it. why() gives the reason a target is barred, or ''.
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
 // verb is the word on the button. said() gives the message shown after a routine action, when a log line would not do. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
 const { CFG, JOBS, HOLDINGS, ASKS, FEASTS, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, sum, gold, people, pct } = __m['js/sim/util.js'];
-const { house, alive, holds, ruled, locals, balks, household, job, grudge, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap, fronts, strength } = __m['js/sim/state.js'];
+const { house, alive, holds, ruled, locals, balks, household, holder, job, grudge, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap, fronts, strength } = __m['js/sim/state.js'];
 const { grown, adults, unwed, wed } = __m['js/sim/family.js'];
 const { coup, purge, routOdds, startWar, assault } = __m['js/sim/conflict.js'];
 const { fill, owe, drop, grieve, terms, promise, pledge } = __m['js/sim/court.js'];
@@ -1811,6 +1815,13 @@ function unseat(W, h, k) {
   delete h.given[k]; sway(o, h, -CFG.court.thanks - 5);
   if (!drop(W, o, h, 'favour')) grieve(W, o, h, `Took back the post of ${JOBS[k].name.toLowerCase()} after calling in the favour it bought`);
 }
+// The warning before post k goes to `to`: someone else holds it, or `to` would leave another post for it. '' when neither.
+function taking(W, h, k, to, name) {
+  const who = holder(W, h, k), post = JOBS[k].name.toLowerCase();
+  if (who === to) return '';
+  if (who) return who.head ? `House ${who.name} is your ${post}. Taking the post away will cost you its goodwill. Tap again to give it to ${name}.` : `${who.n} is your ${post}. Tap again to give the post to ${name} instead.`;
+  return to.job ? `${name} is your ${JOBS[to.job].name.toLowerCase()} and can hold one job. Tap again to make them ${post} and leave that job empty.` : '';
+}
 const seatOf = (W, h) => W.regions[h.seat];
 const court = (W, h) => locals(W, seatOf(W, h)).filter(o => o !== h);   // the other houses of the seat
 const trades = (W, h, t) => (pactsOf(W, h).includes(t) ? ' You have a trade route with them.' : '');
@@ -1839,6 +1850,7 @@ const ACTIONS = {
     group: 'family', kind: 'kid', label: `Appoint a ${JOBS[k].name.toLowerCase()}`, verb: JOBS[k].name, hint: JOBS[k].short,
     said: (W, h, kid) => (kid.job === k ? `${kid.n} is now your ${JOBS[k].name.toLowerCase()}. ${JOBS[k].effect(kid.a)}.${JOBS[k].risk ? ` ${JOBS[k].risk}` : ''}` : `${kid.n} is no longer your ${JOBS[k].name.toLowerCase()}.`),
     targets: adults, now: h => household(h).find(x => x.job === k),
+    swap: (W, h, kid) => taking(W, h, k, kid, kid.n),
     run(W, h, kid) {                                       // choosing the holder again relieves them; a house holding the post gives it up
       const was = kid.job === k;
       for (const x of household(h)) if (x.job === k || x === kid) delete x.job;
@@ -1971,6 +1983,7 @@ const ACTIONS = {
     key: (h, t) => `${t.k}.${t.o.id}`,
     read(W, h, raw) { const [k, id] = raw.split('.'); return { k, o: W.houses[id] }; },
     why: (W, h, t) => (h.given?.[t.k] === t.o.id ? '' : balks(W, W.regions[h.seat], t.o).replace('the ruler', 'you')),
+    swap: (W, h, t) => taking(W, h, t.k, t.o, `House ${t.o.name}`),
     said: (W, h, t) => (h.given?.[t.k] === t.o.id ? `House ${t.o.name} is now your ${JOBS[t.k].name.toLowerCase()}, and owes you a favour. ${JOBS[t.k].effect(+(job(W, h, t.k) / JOBS[t.k].by).toFixed(1))}.` : `House ${t.o.name} is no longer your ${JOBS[t.k].name.toLowerCase()}, and thinks the less of you for it.`),
     run(W, h, t) {
       if (h.given?.[t.k] === t.o.id) return unseat(W, h, t.k);
@@ -3227,7 +3240,7 @@ function research(W, h) {
 // Every child in one card: who they are, where they stand in the succession, their job, and what can be done with them.
 function children(W, h) {
   const heir = heirOf(W, h);
-  const legend = `<p class="legend-note">One holder aged ${CFG.adult} or older per job; tap a job to see what it does, and again to relieve them. Tutors teach ages ${CFG.tutor.from} to ${CFG.tutor.until - 1}.</p>`;
+  const legend = `<p class="legend-note">One holder aged ${CFG.adult} or older per job, among your children, relatives and the houses of your seat. A job someone else holds shows their name; tap it twice to replace them. Tap a lit job to relieve its holder. Tutors teach ages ${CFG.tutor.from} to ${CFG.tutor.until - 1}.</p>`;
   const cards = rows(h.kids, (k, i) => {
     const age = W.year - k.b, fee = cost(W, h, 'tutor', k), stuck = barred(W, h, 'tutor', k);
     return `<div class="child"><b>${esc(k.n)}${k === heir ? '<em>Heir</em>' : ''}${k.job ? `<em class="job">${JOBS[k.job].name}</em>` : ''}</b>
@@ -3239,7 +3252,9 @@ function children(W, h) {
 }
 // One button that turns something on or off for a child or relative: lit while on, greyed out with the reason when barred.
 const tap = (W, h, id, x, label, on) => `<button data-act="${id}" data-t="${household(h).indexOf(x)}"${on ? ' class="on"' : off(barred(W, h, id, x))}>${label}</button>`;
-const posts = (W, h, x) => `<div class="child-acts posts">${W.year - x.b >= CFG.adult ? rows(Object.keys(JOBS), j => tap(W, h, j, x, JOBS[j].name, x.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div>`;
+const posts = (W, h, x) => `<div class="child-acts posts">${W.year - x.b >= CFG.adult ? rows(Object.keys(JOBS), j => tap(W, h, j, x, JOBS[j].name + heldBy(W, h, j, x), x.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div>`;
+// Under a post's name, who holds it now when that is someone other than `me`: the post is taken, and choosing it replaces them.
+const heldBy = (W, h, k, me) => { const who = holder(W, h, k); return who && who !== me ? `<small>${esc(who.head ? `H. ${who.name}` : who.n)}</small>` : ''; };
 // The relatives at court: what each wants, how they stand with the head, and what they would take with them if they left.
 function relatives(W, h) {
   return `<p class="legend-note">Each relative wants something. Given it they warm to you; given something else they hold steady; given nothing they cool, and a bitter one may leave with part of your following in ${REGIONS[h.seat].name}.</p>`
@@ -3260,7 +3275,7 @@ function court(W, h) {
     const no = yours(balks(W, r, o));
     return `<div class="child post"><b>${ref(o, true)}</b><small>${pct(r.shares[o.id].s)} of the ${LABEL.folk} · ${tipped(TIPS.opinion, `thinks of you: ${liking(o, h)}`)}</small>
       ${rows(r.shares[o.id].runs, k => `<small class="${no ? 'bad' : 'doing'}">${HOLDINGS[k].name}: ${no ? `withheld. ${no}` : yours(boonText(k))}</small>`)}
-      ${ledger(o)}${r.i === h.seat ? `<div class="child-acts posts">${rows(Object.keys(JOBS), k => `<button data-act="office" data-t="${k}.${o.id}"${h.given?.[k] === o.id ? ' class="on"' : off(barred(W, h, 'office', { k, o }))}>${JOBS[k].name}</button>`)}</div>
+      ${ledger(o)}${r.i === h.seat ? `<div class="child-acts posts">${rows(Object.keys(JOBS), k => `<button data-act="office" data-t="${k}.${o.id}"${h.given?.[k] === o.id ? ' class="on"' : off(barred(W, h, 'office', { k, o }))}>${JOBS[k].name}${heldBy(W, h, k, o)}</button>`)}</div>
       <div class="child-acts">${rows(Object.keys(ASKS), what => {
         const { how } = terms(W, h, o, what), price = how === 'favour' ? 'spends its favour' : how === 'owe' ? 'you will owe one' : `${gold(cost(W, h, 'ask', { o, what }))} gold`;
         return what === 'amends' && !how ? '' : `<button data-act="ask" data-t="${what}.${o.id}"${off(barred(W, h, 'ask', { o, what }))}>${ASKS[what].name}${how ? `<em>${price}</em>` : ''}</button>`;
@@ -3682,9 +3697,12 @@ const GO = {
   title() { GO.close(); G.phase = 'title'; },
 };
 
-function act(id, raw) {
+// sure: the action the player was just warned about (see swap in actions.js); tapping the same one again goes through.
+function act(id, raw, sure) {
   const W = G.W, h = house(W, W.player), a = ACTIONS[id], said = W.log.length;
   const t = { house: () => W.houses[raw], region: () => W.regions[raw], kid: () => household(h)[raw], option: () => +raw, self: () => null, deal: () => a.read(W, h, raw) }[a.kind]();
+  const warn = a.swap?.(W, h, t);
+  if (warn && sure !== id + raw) { G.sure = id + raw; G.said = warn; G.no = true; return; }
   const name = t === null ? '' : a.kind === 'house' ? `House ${t.name}` : a.kind === 'region' ? REGIONS[t.i].name : a.kind === 'kid' ? t.n : '';
   // A weighty action reports back with a result card; a routine one with the small message in the panel.
   const shown = a.big ? witness(W, name ? `${a.label}: ${name}` : a.label, () => perform(W, h, id, t), a.kind === 'house' ? t : null) : perform(W, h, id, t) ? false : null;
@@ -3698,10 +3716,11 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-go], [data-act], [data-open]');
   if (!el || el.disabled) return;
   const { go, act: id, open, t } = el.dataset;
-  rememberPanel(); G.said = ''; G.no = false;
+  const sure = G.sure;
+  rememberPanel(); G.said = ''; G.no = false; G.sure = '';
   if (el.dataset.why) { G.said = el.dataset.why; G.no = true; return render(); }   // a blocked button says why
   if (go) GO[go.split(':')[0]](go.split(':')[1]);
-  else if (id) act(id, t);
+  else if (id) act(id, t, sure);
   else navigate(open, el.dataset.root === 'true');
   if (G.muted) music.pause(); else if (music.paused) music.play().catch(() => { /* the browser refused; the next click tries again */ });
   store.save();
