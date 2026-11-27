@@ -438,6 +438,12 @@ summary small.bad { color:var(--bad); }
 #bar .badge { top:0; right:calc(50% - 22px); }
 .todo-foot { display:flex; justify-content:space-between; gap:12px; margin-top:6px; }
 .todo-foot .text-link { font-size:13px; color:#9db2cc; }
+.switch-row { width:100%; min-height:44px; display:flex; align-items:center; gap:10px; padding:6px 10px; margin-top:6px; border:1px solid #687483; border-radius:10px; background:linear-gradient(#1b2a3d,#101c2d); text-align:left; }
+.switch-row span { display:grid; gap:2px; min-width:0; }
+.switch-row b { font-size:15px; }
+.switch-row small { color:#b9c7d8; font:400 12.5px/1.25 var(--body); text-transform:none; letter-spacing:0; }
+.switch-row.on { border-color:var(--gold); }
+.switch-row.on .glyph { color:var(--gold); }
 </style>
 </head>
 <body>
@@ -461,7 +467,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 3:56 PM ET · 849a343';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 4:02 PM ET · d93d3b3';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -576,7 +582,7 @@ const CFG = {
   adult: 16,             // age at which a child can marry or lead a branch
   speeds: [1600, 600, 160],   // milliseconds per year
   toast: 2600,           // ms the small result message stays up after a routine action
-  todo: { soon: 3, later: 10, offer: 2 },   // the To do list: years before a loan's term it is flagged; years a case stays put off; moves offered per case
+  todo: { soon: 3, later: 10, offer: 2, spare: .5 },   // the To do list: years before a loan's term it is flagged; years a case stays put off; moves offered per case; the part of the treasury the steward may spend at once
   breath: 1000,          // pause after a card or report is answered, before time moves again
 };
 
@@ -699,7 +705,8 @@ const HOLDINGS = {
 // Tutorials: short screens shown in order the first time the player reaches each part of the game.
 // `start` opens a new game; the other keys are the page that triggers them.
 const GUIDE = {
-  todo: [['To do', 'Only what needs a decision is listed here, with its buttons. The number on the Play button counts them. Tap Not now to put one off. When the list is empty, let time run.']],
+  todo: [['To do', 'Only what needs a decision is listed here, with its buttons. The number on the Play button counts them. Tap Not now to put one off. When the list is empty, let time run.'],
+    ['Your steward', 'At the foot of the page are switches. Switch one on and your steward does that job every year without asking: filling holdings, giving out jobs, repaying loans, building.']],
   start: [
     ['Time', 'Press Play to let the years run. Time stops while a page or popup is open and picks up again when you close it. The To do tab lists what needs you.'],
     ['The globe', 'Drag to turn it, pinch to zoom. Tap a land to see who holds it. The gold outline is what you rule.'],
@@ -2791,6 +2798,125 @@ function offer(W) {
 
 return { GOALS, goalReward, goalLine, stepGoals };
 })();
+__m['js/sim/todo.js'] = (() => {
+// The To do list: what wants the player's decision now, so no page has to be checked by hand. One entry of TODO per kind
+// of thing. find() returns its cases: a key (so a case can be put off), a line to read, the best moves and the page that
+// holds the rest. need: true counts toward the number on the play button; the others are only things gold could buy.
+// auto: [name, what he does] marks a kind the steward can take over when its switch is on (W.auto, optional: kind → true).
+const { CFG, JOBS, HOLDINGS, WANTS, ASKS, PROJECTS, WORKS } = __m['js/config.js'];
+const { named } = __m['js/data/regions.js'];
+const { gold, pct, sum } = __m['js/sim/util.js'];
+const { ruled, locals, balks, holder, job, pactsOf, routeCap, refresh } = __m['js/sim/state.js'];
+const { ACTIONS, barred, cost, perform, affordable, routePay } = __m['js/sim/actions.js'];
+const { heirOf, unwed, adults, served, temper, takes, voices, support } = __m['js/sim/family.js'];
+const { terms } = __m['js/sim/court.js'];
+const { loans, owed, atTerm } = __m['js/sim/loans.js'];
+const { shaky } = __m['js/sim/realm.js'];
+const { open, kind } = __m['js/sim/seat.js'];
+
+// One move: action id, its target, the words on the button and a small note beside them (the price, if left out).
+const move = (id, t, label, em) => ({ id, t, label, em });
+// The best n targets of an action that can be done now, highest rank first.
+const best = (W, h, id, n, rank, pool = ACTIONS[id].targets(W, h)) => pool.filter(t => !barred(W, h, id, t)).sort((a, b) => rank(b) - rank(a)).slice(0, n);
+const price = { favour: 'spends its favour', owe: 'you will owe one' };
+const asks = (W, h, o, whats) => whats.map(what => ({ o, what })).filter(t => !barred(W, h, 'ask', t)).map(t => move('ask', t, `${ASKS[t.what].name}: House ${t.o.name}`, price[terms(W, h, t.o, t.what).how]));
+const emptyPosts = (W, h) => Object.keys(JOBS).filter(k => !holder(W, h, k) && !job(W, h, k));
+const restless = (W, h) => adults(W, h).filter(x => h.kin.includes(x) && !served(x) && temper(x) !== 'Content');
+
+const TODO = {
+  due: { need: true, auto: ['Repay loans', 'Pays each loan in its last years, once you have the gold'], find: (W, h) => loans(W, h).filter(e => e.due - W.year <= CFG.todo.soon).map(e => ({ key: `due${e.b}`,
+    title: `Your loan from House ${W.houses[e.b].name} falls due in ${e.due}`, text: `You owe ${gold(owed(W, e))} gold today, ${gold(atTerm(e))} at the term.`,
+    moves: [move('repay', W.houses[e.b], 'Repay', `${gold(owed(W, e))} gold`)].filter(m => !barred(W, h, m.id, m.t)), open: 'group:trade', reveal: 'repay' })) },
+  rise: { need: true, find: (W, h) => ruled(W, h).filter(r => shaky(W, r)).map(r => ({ key: `rise${r.i}`,
+    title: `${named(r.i)} may rise against you`, text: `House ${shaky(W, r).name} has the stronger following there. Its promise would hold it back.`,
+    moves: asks(W, h, shaky(W, r), ['heir', 'soldiers']).slice(0, 1), open: 'group:court', reveal: `court${r.i}` })) },
+  vacant: { need: true, auto: ['Fill empty holdings', 'Gives each to the strongest house there that will work for you'], find: (W, h) => ruled(W, h).flatMap(r => r.vacant.map((v, n) => {
+    const give = to => move('grant', { r, n, to }, !to ? 'Your steward' : to.head ? `House ${to.name}` : to.n, !to ? 'half as well' : to.head ? 'owes you a favour' : `relative, ability ${to.a}`);
+    const houses = locals(W, r).filter(o => o !== h && !balks(W, r, o)).sort((a, b) => r.shares[b.id].s - r.shares[a.id].s).slice(0, CFG.todo.offer);
+    const kin = h.kin.filter(x => !x.runs && W.year - x.b >= CFG.adult).sort((a, b) => b.a - a.a).slice(0, 1);
+    return { key: `vacant${r.i}.${v.k}`, title: `No one runs the ${HOLDINGS[v.k].name.toLowerCase()} of ${named(r.i)}`, text: 'It gives nothing, and counts against the land, until someone does.',
+      moves: [...houses, ...kin, null].map(give), open: 'group:court', reveal: `court${r.i}` };
+  })) },
+  support: { need: true, find(W, h) {
+    const heir = heirOf(W, h), seat = W.regions[h.seat], s = heir && seat.ruler === h.id ? support(voices(W, h)) : 1;
+    return s >= CFG.contest.safe ? [] : [{ key: 'support', title: `Only ${pct(s)} of your court stands behind ${heir.n}`,
+      text: `Under ${CFG.contest.safe * 100}%, the strongest voice against names its price when ${h.head.n} dies.`,
+      moves: locals(W, seat).filter(o => o !== h).sort((a, b) => seat.shares[b.id].s - seat.shares[a.id].s).flatMap(o => asks(W, h, o, ['heir'])).slice(0, CFG.todo.offer), open: 'group:family', reveal: 'stand' }];
+  } },
+  kin: { need: true, auto: ['Keep relatives content', 'Gives a restless relative the free job or holding they want, or a stipend'], find: (W, h) => restless(W, h).map(x => ({ key: `kin${x.n}`, title: `${x.n} is ${temper(x).toLowerCase()}`,
+    text: `Wants ${WANTS[x.want].text}. Leaving, they would take ${pct(takes(x.a))} of your following in ${named(h.seat)}.`,
+    moves: [JOBS[x.want] && move(x.want, x, JOBS[x.want].name), ...(x.want === 'holding' ? ruled(W, h).flatMap(r => r.vacant.map((v, n) => move('grant', { r, n, to: x }, `${HOLDINGS[v.k].name} of ${named(r.i)}`))).slice(0, 1) : []),
+      !x.paid && move('stipend', x, 'Stipend', `${CFG.kin.stipend * 100}% of income`)].filter(m => m && !barred(W, h, m.id, m.t)), open: 'group:family' })) },
+  idle: { need: true, auto: ['Give out jobs', 'Puts your ablest idle family member in each empty job'], find(W, h) {
+    const posts = emptyPosts(W, h), busy = restless(W, h);
+    return !posts.length ? [] : adults(W, h).filter(x => !x.job && !busy.includes(x)).sort((a, b) => b.a - a.a).slice(0, posts.length).map(x => ({ key: `idle${x.n}`,
+      title: `${x.n} has no job`, text: `Ability ${x.a}. ${posts.length === 1 ? 'One job is' : `${posts.length} jobs are`} empty.`, moves: posts.map(k => move(k, x, JOBS[k].name)), open: 'group:family' }));
+  } },
+  marry: { find(W, h) {
+    const kids = unwed(W, h), to = kids.length ? best(W, h, 'marry', CFG.todo.offer, t => t.levy) : [];
+    return !to.length ? [] : [{ key: `marry${kids[0].n}`, title: `${kids[0].n} is of age and unwed${kids.length > 1 ? `, and ${kids.length - 1} more` : ''}`, text: `A marriage joins two houses for ${CFG.tieYears} years. They send soldiers to your wars.`,
+      moves: to.map(t => move('marry', t, `House ${t.name}`, `${gold(cost(W, h, 'marry', t))} gold · ${gold(t.levy * CFG.allyAid * 1000)} soldiers`)), open: 'group:family', reveal: 'marry' }];
+  } },
+  seat: { find(W, h) {
+    const r = W.regions[h.seat], can = r.ruler === h.id && !r.job ? open(W, h).filter(k => !barred(W, h, 'project', { k })) : [], next = can.filter(k => kind(k) !== 'specialisation');
+    return !can.length || (r.built?.length && !next.length) ? [] : [{ key: `seat${r.built?.length ?? 0}`, title: 'No project is under way in your seat', text: next.length ? PROJECTS[next[0]].text + '.' : 'Choose what your seat will become.',
+      moves: next.slice(0, CFG.todo.offer).map(k => move('project', { k }, PROJECTS[k].name)), open: 'group:seat' }];
+  } },
+  route: { auto: ['Open trade routes', 'Opens the richest route whenever one is free'], find(W, h) {
+    const to = pactsOf(W, h).length < routeCap(W, h) ? best(W, h, 'pact', CFG.todo.offer, t => routePay(h, t)) : [];
+    return !to.length ? [] : [{ key: 'route', title: 'A trade route is free', text: `${pactsOf(W, h).length} of ${routeCap(W, h)} in use.`,
+      moves: to.map(t => move('pact', t, `House ${t.name}`, `${gold(cost(W, h, 'pact', t))} gold · +${gold(routePay(h, t))} a year`)), open: 'group:trade', reveal: 'pact' }];
+  } },
+  tutor: { auto: ['Tutor the heir', 'Hires a master whenever your heir can be taught'], find(W, h) {
+    const k = heirOf(W, h);
+    return !k || barred(W, h, 'tutor', k) ? [] : [{ key: `tutor${k.n}`, title: `${k.n} can be taught`, text: `Ability ${k.a}. A master may raise it by up to 3.`, moves: [move('tutor', k, 'Hire a tutor')], open: 'group:family' }];
+  } },
+  build: { auto: ['Build', 'Builds farms, schools and roads where gold allows, cheapest first'], find(W, h) {
+    const ks = ['farms', 'schools', 'roads'].map(id => [id, affordable(W, h, id).paid]).filter(x => x[1].length);
+    return !ks.length ? [] : [{ key: 'build', title: 'You can afford to build', text: 'Building earns loyalty where it is done.',
+      moves: ks.map(([id, paid]) => ({ go: `all:${id}`, label: `${WORKS[id][0]} in ${paid.length} land${paid.length === 1 ? '' : 's'}`, em: `${gold(sum(paid, t => cost(W, h, id, t)))} gold` })), open: 'group:goys', reveal: 'farms' }];
+  } },
+};
+
+// The list for house h, needs first, without what the player has put off (W.later holds each key and the year it returns).
+function todo(W, h) {
+  if (!h || h.dead) return [];
+  const all = Object.entries(TODO).flatMap(([k, e]) => e.find(W, h).map(x => ({ ...x, k, need: !!e.need })));
+  return all.filter(x => !((W.later?.[x.key] ?? 0) > W.year)).sort((a, b) => b.need - a.need);
+}
+// Put a case off for CFG.todo.later years, and forget the ones whose time has come.
+function later(W, key) {
+  W.later = Object.fromEntries(Object.entries(W.later ?? {}).filter(([, y]) => y > W.year));
+  W.later[key] = W.year + CFG.todo.later;
+}
+
+// The steward. With a kind's switch on he takes, every year and without asking, the first move of each of its cases that
+// takes nothing from anyone else. What gold could buy he buys only out of a part of the treasury (CFG.todo.spare).
+// only: one kind, for the moment its switch is turned on. Returns how many things he did.
+function steward(W, h, only) {
+  let n = 0;
+  const spare = (id, t) => cost(W, h, id, t) <= h.gold * CFG.todo.spare;
+  for (const [k, e] of Object.entries(TODO)) {
+    if (!e.auto || !W.auto?.[k] || (only && only !== k) || h.dead) continue;
+    for (let i = 0; i < 20; i++) {                         // one move at a time: each changes what the next case offers
+      const m = e.find(W, h).map(x => x.moves.find(m => m.go || !ACTIONS[m.id].swap?.(W, h, m.t))).find(m => m && (m.go || e.need || spare(m.id, m.t)));
+      if (!m) break;
+      if (m.go) {                                          // building: every kind of work together, cheapest first
+        const works = e.find(W, h)[0].moves.map(m => m.go.split(':')[1]).flatMap(id => affordable(W, h, id).open.map(t => [id, t])).sort((a, b) => cost(W, h, ...a) - cost(W, h, ...b));
+        let left = h.gold * CFG.todo.spare;
+        for (const [id, t] of works) if ((left -= cost(W, h, id, t)) >= 0) n += perform(W, h, id, t);
+        break;
+      }
+      if (!perform(W, h, m.id, m.t)) break;
+      n++;
+    }
+  }
+  if (n) refresh(W);
+  return n;
+}
+
+return { TODO, todo, later, steward };
+})();
 __m['js/sim/step.js'] = (() => {
 // The yearly tick, and what happens at the close of each century.
 const { CFG, END, ERA, LABEL, UNLOCKS } = __m['js/config.js'];
@@ -2807,6 +2933,7 @@ const { tellStory } = __m['js/sim/stories.js'];
 const { stepGoals } = __m['js/sim/goals.js'];
 const { forget } = __m['js/sim/court.js'];
 const { loans, owed, repay, ask, inherit } = __m['js/sim/loans.js'];
+const { steward } = __m['js/sim/todo.js'];
 
 function stepYear(W) {
   W.year++;
@@ -2822,7 +2949,7 @@ function stepYear(W) {
   }
   inherit(W); forget(W);
   refresh(W);
-  if (W.player >= 0) watch(W);
+  if (W.player >= 0) { steward(W, house(W, W.player)); watch(W); }
   if (W.year % ERA === 0) closeEra(W);
   if (W.year >= END) W.over ??= 'end';
 }
@@ -2908,99 +3035,6 @@ function closeEra(W) {
 }
 
 return { stepYear, tellThrones };
-})();
-__m['js/sim/todo.js'] = (() => {
-// The To do list: what wants the player's decision now, so no page has to be checked by hand. One entry of TODO per kind
-// of thing. find() returns its cases: a key (so a case can be put off), a line to read, the best moves and the page that
-// holds the rest. need: true counts toward the number on the play button; the others are only things gold could buy.
-const { CFG, JOBS, HOLDINGS, WANTS, ASKS, PROJECTS, WORKS } = __m['js/config.js'];
-const { named } = __m['js/data/regions.js'];
-const { gold, pct, sum } = __m['js/sim/util.js'];
-const { ruled, locals, balks, holder, job, pactsOf, routeCap } = __m['js/sim/state.js'];
-const { ACTIONS, barred, cost, affordable, routePay } = __m['js/sim/actions.js'];
-const { heirOf, unwed, adults, served, temper, takes, voices, support } = __m['js/sim/family.js'];
-const { terms } = __m['js/sim/court.js'];
-const { loans, owed, atTerm } = __m['js/sim/loans.js'];
-const { shaky } = __m['js/sim/realm.js'];
-const { open, kind } = __m['js/sim/seat.js'];
-
-// One move: action id, its target, the words on the button and a small note beside them (the price, if left out).
-const move = (id, t, label, em) => ({ id, t, label, em });
-// The best n targets of an action that can be done now, highest rank first.
-const best = (W, h, id, n, rank, pool = ACTIONS[id].targets(W, h)) => pool.filter(t => !barred(W, h, id, t)).sort((a, b) => rank(b) - rank(a)).slice(0, n);
-const price = { favour: 'spends its favour', owe: 'you will owe one' };
-const asks = (W, h, o, whats) => whats.map(what => ({ o, what })).filter(t => !barred(W, h, 'ask', t)).map(t => move('ask', t, `${ASKS[t.what].name}: House ${t.o.name}`, price[terms(W, h, t.o, t.what).how]));
-const emptyPosts = (W, h) => Object.keys(JOBS).filter(k => !holder(W, h, k) && !job(W, h, k));
-const restless = (W, h) => adults(W, h).filter(x => h.kin.includes(x) && !served(x) && temper(x) !== 'Content');
-
-const TODO = {
-  due: { need: true, find: (W, h) => loans(W, h).filter(e => e.due - W.year <= CFG.todo.soon).map(e => ({ key: `due${e.b}`,
-    title: `Your loan from House ${W.houses[e.b].name} falls due in ${e.due}`, text: `You owe ${gold(owed(W, e))} gold today, ${gold(atTerm(e))} at the term.`,
-    moves: [move('repay', W.houses[e.b], 'Repay', `${gold(owed(W, e))} gold`)].filter(m => !barred(W, h, m.id, m.t)), open: 'group:trade', reveal: 'repay' })) },
-  rise: { need: true, find: (W, h) => ruled(W, h).filter(r => shaky(W, r)).map(r => ({ key: `rise${r.i}`,
-    title: `${named(r.i)} may rise against you`, text: `House ${shaky(W, r).name} has the stronger following there. Its promise would hold it back.`,
-    moves: asks(W, h, shaky(W, r), ['heir', 'soldiers']).slice(0, 1), open: 'group:court', reveal: `court${r.i}` })) },
-  vacant: { need: true, find: (W, h) => ruled(W, h).flatMap(r => r.vacant.map((v, n) => {
-    const give = to => move('grant', { r, n, to }, !to ? 'Your steward' : to.head ? `House ${to.name}` : to.n, !to ? 'half as well' : to.head ? 'owes you a favour' : `relative, ability ${to.a}`);
-    const houses = locals(W, r).filter(o => o !== h && !balks(W, r, o)).sort((a, b) => r.shares[b.id].s - r.shares[a.id].s).slice(0, CFG.todo.offer);
-    const kin = h.kin.filter(x => !x.runs && W.year - x.b >= CFG.adult).sort((a, b) => b.a - a.a).slice(0, 1);
-    return { key: `vacant${r.i}.${v.k}`, title: `No one runs the ${HOLDINGS[v.k].name.toLowerCase()} of ${named(r.i)}`, text: 'It gives nothing, and counts against the land, until someone does.',
-      moves: [...houses, ...kin, null].map(give), open: 'group:court', reveal: `court${r.i}` };
-  })) },
-  support: { need: true, find(W, h) {
-    const heir = heirOf(W, h), seat = W.regions[h.seat], s = heir && seat.ruler === h.id ? support(voices(W, h)) : 1;
-    return s >= CFG.contest.safe ? [] : [{ key: 'support', title: `Only ${pct(s)} of your court stands behind ${heir.n}`,
-      text: `Under ${CFG.contest.safe * 100}%, the strongest voice against names its price when ${h.head.n} dies.`,
-      moves: locals(W, seat).filter(o => o !== h).sort((a, b) => seat.shares[b.id].s - seat.shares[a.id].s).flatMap(o => asks(W, h, o, ['heir'])).slice(0, CFG.todo.offer), open: 'group:family', reveal: 'stand' }];
-  } },
-  kin: { need: true, find: (W, h) => restless(W, h).map(x => ({ key: `kin${x.n}`, title: `${x.n} is ${temper(x).toLowerCase()}`,
-    text: `Wants ${WANTS[x.want].text}. Leaving, they would take ${pct(takes(x.a))} of your following in ${named(h.seat)}.`,
-    moves: [JOBS[x.want] && move(x.want, x, JOBS[x.want].name), ...(x.want === 'holding' ? ruled(W, h).flatMap(r => r.vacant.map((v, n) => move('grant', { r, n, to: x }, `${HOLDINGS[v.k].name} of ${named(r.i)}`))).slice(0, 1) : []),
-      !x.paid && move('stipend', x, 'Stipend', `${CFG.kin.stipend * 100}% of income`)].filter(m => m && !barred(W, h, m.id, m.t)), open: 'group:family' })) },
-  idle: { need: true, find(W, h) {
-    const posts = emptyPosts(W, h), busy = restless(W, h);
-    return !posts.length ? [] : adults(W, h).filter(x => !x.job && !busy.includes(x)).sort((a, b) => b.a - a.a).slice(0, posts.length).map(x => ({ key: `idle${x.n}`,
-      title: `${x.n} has no job`, text: `Ability ${x.a}. ${posts.length === 1 ? 'One job is' : `${posts.length} jobs are`} empty.`, moves: posts.map(k => move(k, x, JOBS[k].name)), open: 'group:family' }));
-  } },
-  marry: { find(W, h) {
-    const kids = unwed(W, h), to = kids.length ? best(W, h, 'marry', CFG.todo.offer, t => t.levy) : [];
-    return !to.length ? [] : [{ key: `marry${kids[0].n}`, title: `${kids[0].n} is of age and unwed${kids.length > 1 ? `, and ${kids.length - 1} more` : ''}`, text: `A marriage joins two houses for ${CFG.tieYears} years. They send soldiers to your wars.`,
-      moves: to.map(t => move('marry', t, `House ${t.name}`, `${gold(cost(W, h, 'marry', t))} gold · ${gold(t.levy * CFG.allyAid * 1000)} soldiers`)), open: 'group:family', reveal: 'marry' }];
-  } },
-  seat: { find(W, h) {
-    const r = W.regions[h.seat], can = r.ruler === h.id && !r.job ? open(W, h).filter(k => !barred(W, h, 'project', { k })) : [], next = can.filter(k => kind(k) !== 'specialisation');
-    return !can.length || (r.built?.length && !next.length) ? [] : [{ key: `seat${r.built?.length ?? 0}`, title: 'No project is under way in your seat', text: next.length ? PROJECTS[next[0]].text + '.' : 'Choose what your seat will become.',
-      moves: next.slice(0, CFG.todo.offer).map(k => move('project', { k }, PROJECTS[k].name)), open: 'group:seat' }];
-  } },
-  route: { find(W, h) {
-    const to = pactsOf(W, h).length < routeCap(W, h) ? best(W, h, 'pact', CFG.todo.offer, t => routePay(h, t)) : [];
-    return !to.length ? [] : [{ key: 'route', title: 'A trade route is free', text: `${pactsOf(W, h).length} of ${routeCap(W, h)} in use.`,
-      moves: to.map(t => move('pact', t, `House ${t.name}`, `${gold(cost(W, h, 'pact', t))} gold · +${gold(routePay(h, t))} a year`)), open: 'group:trade', reveal: 'pact' }];
-  } },
-  tutor: { find(W, h) {
-    const k = heirOf(W, h);
-    return !k || barred(W, h, 'tutor', k) ? [] : [{ key: `tutor${k.n}`, title: `${k.n} can be taught`, text: `Ability ${k.a}. A master may raise it by up to 3.`, moves: [move('tutor', k, 'Hire a tutor')], open: 'group:family' }];
-  } },
-  build: { find(W, h) {
-    const ks = ['farms', 'schools', 'roads'].map(id => [id, affordable(W, h, id).paid]).filter(x => x[1].length);
-    return !ks.length ? [] : [{ key: 'build', title: 'You can afford to build', text: 'Building earns loyalty where it is done.',
-      moves: ks.map(([id, paid]) => ({ go: `all:${id}`, label: `${WORKS[id][0]} in ${paid.length} land${paid.length === 1 ? '' : 's'}`, em: `${gold(sum(paid, t => cost(W, h, id, t)))} gold` })), open: 'group:goys', reveal: 'farms' }];
-  } },
-};
-
-// The list for house h, needs first, without what the player has put off (W.later holds each key and the year it returns).
-function todo(W, h) {
-  if (!h || h.dead) return [];
-  const all = Object.entries(TODO).flatMap(([k, e]) => e.find(W, h).map(x => ({ ...x, k, need: !!e.need })));
-  return all.filter(x => !((W.later?.[x.key] ?? 0) > W.year)).sort((a, b) => b.need - a.need);
-}
-// Put a case off for CFG.todo.later years, and forget the ones whose time has come.
-function later(W, key) {
-  W.later = Object.fromEntries(Object.entries(W.later ?? {}).filter(([, y]) => y > W.year));
-  W.later[key] = W.year + CFG.todo.later;
-}
-
-return { TODO, todo, later };
 })();
 __m['js/sim/cards.js'] = (() => {
 // Decisions that interrupt the player. Each type builds { title, text, who, opts: [{ label, hint, bar, run }] } from saved
@@ -3611,7 +3645,7 @@ const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct, realYear } = __m['js/sim/util.js'];
 const { house, alive, holds, ruled, locals, balks, household, holder, job, owes, pledged, opinion, tied, pactsOf, allyAid, workCap, routeCap, techYear, routeParts, net, warBill } = __m['js/sim/state.js'];
 const { ACTIONS, cost, barred, frontLine, affordable } = __m['js/sim/actions.js'];
-const { todo } = __m['js/sim/todo.js'];
+const { TODO, todo } = __m['js/sim/todo.js'];
 const { heirOf, unwed, splitRisk, served, temper, takes, voices, support } = __m['js/sim/family.js'];
 const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'];
 const { mood, shaky } = __m['js/sim/realm.js'];
@@ -3909,11 +3943,14 @@ function todoPage(W, h) {
   const button = m => (m.go ? `<button data-go="${m.go}">${esc(m.label)}<em>${m.em}</em></button>`
     : `<button data-act="${m.id}" data-t="${targetId(ACTIONS[m.id], h, m.t)}">${esc(m.label)}${m.em ?? cost(W, h, m.id, m.t) ? `<em>${m.em ?? `${gold(cost(W, h, m.id, m.t))} gold`}</em>` : ''}</button>`);
   const row = x => `<div class="child post todo"><b>${esc(x.title)}</b><small>${esc(x.text)}</small>${x.moves.length ? `<div class="child-acts">${rows(x.moves, button)}</div>` : ''}
-    <div class="todo-foot"><button class="text-link" data-open="${x.open}"${x.reveal ? ` data-reveal="${x.reveal}"` : ''}>${x.moves.length ? 'More choices' : 'Open the page'} →</button><button class="text-link" data-go="later:${esc(x.key)}">Not now</button></div></div>`;
+    <div class="todo-foot"><button class="text-link" data-open="${x.open}"${x.reveal ? ` data-reveal="${x.reveal}"` : ''}>${x.moves.length ? 'More choices' : 'Open the page'} →</button>${TODO[x.k].auto && !W.auto?.[x.k] ? `<button class="text-link" data-go="auto:${x.k}">Let the steward</button>` : ''}<button class="text-link" data-go="later:${esc(x.key)}">Not now</button></div></div>`;
+  const autos = Object.entries(TODO).filter(([, e]) => e.auto), on = k => !!W.auto?.[k];
   return (heirOf(W, h) ? '' : `<button class="home-alert warning" data-open="group:family">${icon('alert')}<span>${UI.noHeir} · View family →</span></button>`)
     + (needs.length ? `<section><h3>Needs you <span class="count">${needs.length}</span></h3>${rows(needs, row)}</section>` : state('check', 'Nothing needs you', 'Close this page and let time run. The Play button shows a number when something does.'))
     + (rest.length ? `<section><h3>You can afford</h3>${rows(rest, row)}</section>` : '')
-    + (put ? `<p class="legend-note">${put} put off for now. <button class="text-link" data-go="later:">Show them again</button></p>` : '');
+    + (put ? `<p class="legend-note">${put} put off for now. <button class="text-link" data-go="later:">Show them again</button></p>` : '')
+    + `<section><h3>Your steward handles</h3><p class="legend-note">Switch one on and it is done every year without asking. What costs gold never takes more than ${CFG.todo.spare * 100}% of your treasury at once.</p>
+      ${rows(autos, ([k, e]) => `<button class="switch-row ${on(k) ? 'on' : ''}" data-go="auto:${k}" aria-pressed="${on(k)}">${icon(on(k) ? 'selected' : 'radio')}<span><b>${e.auto[0]}</b><small>${e.auto[1]}</small></span></button>`)}</section>`;
 }
 
 // What the player can do to one fixed land or house, for that land's or house's own sheet. Moves that cannot reach
@@ -4091,7 +4128,7 @@ const { REGIONS, RID } = __m['js/data/regions.js'];
 const { createWorld, takeHouse, foundHouse, house, household, refresh, migrate } = __m['js/sim/state.js'];
 const { stepYear, tellThrones } = __m['js/sim/step.js'];
 const { ACTIONS, perform, affordable } = __m['js/sim/actions.js'];
-const { todo, later } = __m['js/sim/todo.js'];
+const { todo, later, steward } = __m['js/sim/todo.js'];
 const { nextCard, answer, witness } = __m['js/sim/cards.js'];
 const { createMap } = __m['js/ui/map.js'];
 const { createMusic } = __m['js/ui/music.js'];
@@ -4250,6 +4287,11 @@ const GO = {
   close() { rememberPanel(); G.open = null; G.sel = -1; G.look = null; G.history = []; if (G.ran) G.paused = G.ran = false; },
   back() { const to = G.history.pop(); if (!to) return GO.close(); rememberPanel(); G.open = to; G.look = null; G.sel = to.startsWith('region:') ? +to.slice(7) : -1; },
   later(key) { if (key) later(G.W, key); else delete G.W.later; },   // put one case off, or bring them all back
+  auto(k) {                                               // hand a kind of job to the steward, or take it back; he starts at once
+    const W = G.W, on = (W.auto ??= {})[k] = !W.auto[k];
+    if (on) steward(W, house(W, W.player), k);
+    G.said = on ? 'Your steward handles this from now on.' : 'You handle this yourself again.';
+  },
   look(id) { G.look = +id; G.paused = true; },
   unlook() { G.returnFocus = `[data-go="look:${G.look}"]`; G.look = null; },
   fullhouse(id) { navigate(`house:${id}`); },
