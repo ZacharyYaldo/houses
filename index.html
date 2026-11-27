@@ -452,7 +452,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 11:54 PM ET · 322078e';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 1:05 AM ET · f73d7f4';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -764,11 +764,11 @@ const REGIONS = [
 const named = i => REGIONS[i].name.replace(/^The /, 'the ');
 const RID = Object.fromEntries(REGIONS.map((r, i) => [r.id, i]));
 
-// Sea lanes. Sahul is reached by island-hopping from Suvarnabhumi and across the Pacific from Pulotu, so it is not cut off
-// until the age of sail. near: sailed since antiquity. ocean: open once either shore's knowledge reaches CFG.oceanYear.
+// Sea lanes. Sahul is reached by island-hopping from Suvarnabhumi, so it is not cut off until the age of sail. The crossing
+// from Pulotu to Sahul is open ocean: were it open from the start, Asia and the Americas would be joined in year 0. near: sailed since antiquity. ocean: open once either shore's knowledge reaches CFG.oceanYear.
 const SEA = {
-  near: [['ita', 'mag'], ['ita', 'hel'], ['his', 'mag'], ['hel', 'egy'], ['ara', 'eaf'], ['ara', 'dec'], ['eaf', 'dec'], ['dec', 'sea'], ['yam', 'han'], ['yam', 'lin'], ['mes', 'and'], ['cub', 'mes'], ['cub', 'nam'], ['sea', 'aus'], ['plt', 'aus']],
-  ocean: [['his', 'mes'], ['his', 'cub'], ['his', 'amz'], ['gal', 'nam'], ['gal', 'kan'], ['waf', 'amz'], ['saf', 'dec'], ['lin', 'aus'], ['yam', 'nam'], ['his', 'saf']],
+  near: [['ita', 'mag'], ['ita', 'hel'], ['his', 'mag'], ['hel', 'egy'], ['ara', 'eaf'], ['ara', 'dec'], ['eaf', 'dec'], ['dec', 'sea'], ['yam', 'han'], ['yam', 'lin'], ['mes', 'and'], ['cub', 'mes'], ['cub', 'nam'], ['sea', 'aus']],
+  ocean: [['his', 'mes'], ['his', 'cub'], ['his', 'amz'], ['gal', 'nam'], ['gal', 'kan'], ['waf', 'amz'], ['saf', 'dec'], ['lin', 'aus'], ['yam', 'nam'], ['his', 'saf'], ['plt', 'aus']],
 };
 
 return { REGIONS, named, RID, SEA };
