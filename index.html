@@ -409,6 +409,7 @@ summary::-webkit-details-marker { display:none; }
 .child-acts button.on { background:#2f6b4c; border-color:#5fbf78; color:#fff; }
 .child-acts button em { display:inline; font-style:normal; color:var(--gold); margin-left:6px; }
 .child-acts span { font-size:12px; color:var(--dim); } .child-acts span.why { color:var(--bad); }
+.posts { display:grid; grid-template-columns:repeat(4,auto); } .posts button { padding:6px 4px; }   /* the four posts, always on one line */
 .job-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; font-size:13px; color:#b9c7d8; } .job-list b { color:var(--ink); }
 #sheet>.action-result { animation:toast 2.6s ease-in forwards; }
 @keyframes toast { 0%,80% { opacity:1; } 100% { opacity:0; } }
@@ -448,7 +449,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 11:37 PM ET · 4784ca2';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 11:44 PM ET · f1f0007';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -560,11 +561,11 @@ const TIPS = {
   Gold: 'What a house has to spend. The small number is how your gold will change this year: income from taxes, the lands you rule and trade, less 6% of your gold for each war you are in.',
   Thrones: 'How many lands this house rules.',
   'World rank': 'Rank among all living houses by power: soldiers, gold and prestige.',
-  Soldiers: 'Fighting strength: loyal followers, better weapons as knowledge grows, and the ability of the head.',
-  'Soldiers from allies': `Every house joined to you by marriage sends ${.3 * 100}% of its soldiers to any war you fight, unless it is also joined to your enemy.`,
+  Soldiers: `Fighting strength: loyal followers, better weapons as knowledge grows, and the ability of the head. In a land you rule, each house that works for you adds ${CFG.court.muster * 100}% of its own.`,
+  'Soldiers from allies': `Every house joined to you by marriage, or that has promised you soldiers, sends ${CFG.allyAid * 100}% of its soldiers to any war you fight, unless it is also joined to your enemy.`,
   Prestige: 'Standing among the houses. It multiplies power. Thrones and victories raise it; failed plots and lost wars lower it.',
   Head: 'The person leading the house. Their trait and ability shape everything it does. When they die the heir takes over.',
-  Heir: 'Who inherits next. With no living child the lands may pass to a house joined by marriage, or the line may end.',
+  Heir: 'Who inherits next. With no living child your own house passes to a relative or a cousin. Another house\'s lands may pass to a house joined to it by marriage, or its line may end.',
   Children: `Children can be named heir, married into other houses, or sent abroad to plant a branch. Marrying and branching need a child aged ${CFG.adult} or over who is not yet married.`,
   'Houses joined by marriage': `A marriage tie lasts ${CFG.tieYears} years. Joined houses fight beside each other and cannot plot against each other.`,
   'Your followers': `All the ${LABEL.folk} who follow your house, across every land.`,
@@ -577,7 +578,7 @@ const TIPS = {
   Land: 'Tap a land to see who rules it and every house in it.',
   ability: 'Ability, from 1 to 10. An able head earns more, fights better and gets more from scholars. Children partly inherit it.',
   works: `Farms make room for more ${LABEL.folk}, schools raise reading and knowledge, and roads make people richer and add a trade route. Research raises how high each can be built.`,
-  opinion: 'What this house thinks of you, from -100 to 100. Gifts, marriages and trade raise it; plots and wars lower it. Below -20 they refuse a marriage.',
+  opinion: 'What this house thinks of you, from -100 to 100. Gifts, marriages and trade raise it; plots and wars lower it. Below -20 they refuse a marriage, and at -30 or worse a house in a land you rule stops working for you.',
 };
 
 
@@ -641,14 +642,15 @@ const GUIDE = {
     ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
     ['No heir', 'If the head dies with no living child, your ablest relative takes over and you lose a quarter of your prestige. With no relative either, a cousin does and you lose half.'],
     ['Marriages', 'Marry a child aged 16 or older into another house. That house becomes an ally and lends soldiers in your wars.'],
-    ['Far lands', 'When a head dies, lands away from your seat may break away under a cousin. Loyal lands and an able heir make it far less likely.'],
-    ['Jobs and tutors', 'Give a grown child a job: governor, commander, scholar or envoy. Pay a tutor to try to raise a child\'s ability.'],
+    ['Jobs and tutors', 'Give a grown child or relative a job: governor, commander, scholar or envoy. Pay a tutor to try to raise a child\'s ability.'],
+    ['Relatives', 'When a head dies, the heir\'s grown brothers and sisters stay at court. Each wants a job, a holding to run or a stipend. Give it and they warm to you; pass them over for years and they leave, taking followers with them.'],
     ['A disputed succession', 'The houses of your seat and your grown relatives each stand for or against your heir. With under 60% behind the heir, the strongest voice against names a price when you die. Under 40%, refusing it means civil war.'],
-    ['Relatives', 'When a head dies, the heir\'s grown brothers and sisters stay at court. Each wants something. Give it and they serve you well; pass them over for years and they leave, taking followers with them.'],
+    ['Far lands', 'When a head dies, lands away from your seat may break away under a cousin. Loyal lands and an able heir make it far less likely.'],
   ],
   goys: [
     [`Your ${LABEL.folk}`, `Your income is the tax your ${LABEL.folk} pay. Raise it and you earn more now, but they grow less loyal and may leave you or revolt.`],
     ['Building', 'Farms feed more people, schools speed up learning, roads open more trade routes. Each level costs more than the last.'],
+    ['A great feast', 'Once every ten years you can hold a great feast. Choose what it is for: your people\'s loyalty, presenting your heir to the houses of your seat, or honouring one house.'],
   ],
   trade: [
     ['Trade routes', 'A route pays you and your partner every year. Richer partners pay more.'],
@@ -659,15 +661,15 @@ const GUIDE = {
     ['Discoveries', 'Each discovery unlocks something: more building levels, more routes or new actions.'],
   ],
   power: [
-    ['War', 'March on a neighbouring land to take its throne. Compare soldiers first. Houses tied to you by marriage add theirs.'],
-    ['Plots', 'Slander a house, stir up its followers, seize a throne from inside, or drive a house out of a land you rule.'],
+    ['War', 'March on a land next to one you rule to take its throne. A short sea crossing counts as next to; an ocean does not until ocean-crossing ships. Compare soldiers first. Houses joined to you by marriage or a promise add theirs.'],
+    ['Plots', 'Slander a house, stir up its followers, seize a throne from inside, or drive a house out of a land you rule. Driving one out costs you what it ran for you; the Court page shows what that is.'],
     ['Costs', 'Every move shows its price and what it does before you choose. A greyed-out move says why.'],
   ],
   world: [
     ['The world', 'See how every house ranks, how your world compares with real history, and the record of what has happened.'],
   ],
   land: [
-    ['A land', 'Each house here is listed with its share of the people and how loyal they are. The ruler holds the throne.'],
+    ['A land', 'Each house here is listed with its share of the people, how loyal they are, and what it runs for the ruler. The ruler holds the throne.'],
     ['Your moves', 'Anything you can do in this land is listed at the bottom of its page.'],
   ],
 };
@@ -680,7 +682,7 @@ const UI = {
   paused: 'Time paused', back: 'Back', close: 'Close', resume: 'Resume on map', play: 'Play', pause: 'Pause',
   home: 'My lands', mapHint: 'Drag to explore · Pinch to zoom', chronicle: 'Open chronicle', noEvents: 'Your history begins here.',
   noHeir: 'No heir', heirWarning: 'Without an heir, a relative or a cousin takes over and you lose prestige.',
-  heirHelp: 'If your head dies without a living child, a cousin carries on your house. Your prestige is halved.',
+  heirHelp: 'If your head dies without a living child, your ablest relative carries on your house and you lose a quarter of your prestige. With no relative, a cousin does and you lose half.',
   children: 'Children', emptyChildren: 'No children yet', childrenHelp: 'Your family can grow as the years pass.',
   alliances: 'Marriage alliances', marriageLocked: 'Marriage is not available yet',
   marriageHelp: 'Needs an unmarried child aged 16 or older.', history: 'Family history',
@@ -3237,7 +3239,7 @@ function children(W, h) {
 }
 // One button that turns something on or off for a child or relative: lit while on, greyed out with the reason when barred.
 const tap = (W, h, id, x, label, on) => `<button data-act="${id}" data-t="${household(h).indexOf(x)}"${on ? ' class="on"' : off(barred(W, h, id, x))}>${label}</button>`;
-const posts = (W, h, x) => `<div class="child-acts">${W.year - x.b >= CFG.adult ? rows(Object.keys(JOBS), j => tap(W, h, j, x, JOBS[j].name, x.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div>`;
+const posts = (W, h, x) => `<div class="child-acts posts">${W.year - x.b >= CFG.adult ? rows(Object.keys(JOBS), j => tap(W, h, j, x, JOBS[j].name, x.job === j)) : `<span>Jobs open at ${CFG.adult}</span>`}</div>`;
 // The relatives at court: what each wants, how they stand with the head, and what they would take with them if they left.
 function relatives(W, h) {
   return `<p class="legend-note">Each relative wants something. Given it they warm to you; given something else they hold steady; given nothing they cool, and a bitter one may leave with part of your following in ${REGIONS[h.seat].name}.</p>`
@@ -3258,8 +3260,8 @@ function court(W, h) {
     const no = yours(balks(W, r, o));
     return `<div class="child post"><b>${ref(o, true)}</b><small>${pct(r.shares[o.id].s)} of the ${LABEL.folk} · ${tipped(TIPS.opinion, `thinks of you: ${liking(o, h)}`)}</small>
       ${rows(r.shares[o.id].runs, k => `<small class="${no ? 'bad' : 'doing'}">${HOLDINGS[k].name}: ${no ? `withheld. ${no}` : yours(boonText(k))}</small>`)}
-      ${ledger(o)}${r.i === h.seat ? `<div class="child-acts"><span>Post</span>${rows(Object.keys(JOBS), k => `<button data-act="office" data-t="${k}.${o.id}"${h.given?.[k] === o.id ? ' class="on"' : off(barred(W, h, 'office', { k, o }))}>${JOBS[k].name}</button>`)}</div>
-      <div class="child-acts"><span>Ask</span>${rows(Object.keys(ASKS), what => {
+      ${ledger(o)}${r.i === h.seat ? `<div class="child-acts posts">${rows(Object.keys(JOBS), k => `<button data-act="office" data-t="${k}.${o.id}"${h.given?.[k] === o.id ? ' class="on"' : off(barred(W, h, 'office', { k, o }))}>${JOBS[k].name}</button>`)}</div>
+      <div class="child-acts">${rows(Object.keys(ASKS), what => {
         const { how } = terms(W, h, o, what), price = how === 'favour' ? 'spends its favour' : how === 'owe' ? 'you will owe one' : `${gold(cost(W, h, 'ask', { o, what }))} gold`;
         return what === 'amends' && !how ? '' : `<button data-act="ask" data-t="${what}.${o.id}"${off(barred(W, h, 'ask', { o, what }))}>${ASKS[what].name}${how ? `<em>${price}</em>` : ''}</button>`;
       })}</div>` : ''}</div>`;
