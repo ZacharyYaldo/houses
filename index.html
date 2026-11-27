@@ -448,7 +448,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 7:03 PM ET · e4c1c17';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 11:37 PM ET · 4784ca2';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -751,9 +751,9 @@ const REGIONS = [
   { id: 'aus', name: 'Sahul',         cul: 'sahul',    pop: .6,  know: -5000, room: 2.1,  seeds: [[146,-33], [134,-24], [120,-28], [142,-6], [174,-40], [146,-42]] },
   // Invented lands in the Pacific. New lands go at the END of this list: a save stores lands by position, and
   // migrate() in state.js adds whatever a save is missing.
-  { id: 'hwk', name: 'Hawaiki',       cul: 'moana',    pop: .5,  know: -1800, room: 3,    seeds: [[-145.2,26], [-149.2,24.8], [-140.4,27.6]] },
-  { id: 'khk', name: 'Kahiki',        cul: 'moana',    pop: .6,  know: -1500, room: 3,    seeds: [[-136,19.2], [-135.6,23.6], [-136,15.2]] },
-  { id: 'plt', name: 'Pulotu',        cul: 'moana',    pop: .4,  know: -2200, room: 3,    seeds: [[-146,15.2], [-149.2,19.6], [-142,18]] },
+  { id: 'hwk', name: 'Hawaiki',       cul: 'moana',    pop: .5,  know: -1800, room: 3,    seeds: [[-156.7,18], [-161.5,16.6], [-151,20]] },
+  { id: 'khk', name: 'Kahiki',        cul: 'moana',    pop: .6,  know: -1500, room: 3,    seeds: [[-145.7,9.9], [-145.2,15.2], [-145.7,5.1]] },
+  { id: 'plt', name: 'Pulotu',        cul: 'moana',    pop: .4,  know: -2200, room: 3,    seeds: [[-157.7,5.1], [-161.5,10.4], [-152.9,8.4]] },
 ];
 // A land's name as it reads in the middle of a sentence: "in the Levant".
 const named = i => REGIONS[i].name.replace(/^The /, 'the ');
@@ -875,8 +875,8 @@ const LAND = [
   [144.7,-40.8, 148.2,-40.8, 148,-43.2, 146,-43.5, 145.2,-42.5],                                                          // Tasmania
   [172.7,-34.5, 176,-37.5, 178.5,-37.7, 176.8,-40.5, 174.9,-41.5, 173.8,-39.2, 174.7,-37], [172.7,-40.6, 174.3,-41.8, 171.2,-44.5, 168.5,-46.7, 166.5,-45.8, 170.5,-42.8], // New Zealand
   // Hawaiki: an invented land in the open Pacific, joined to the coast of North America by a narrow neck of land
-  [-148.4,28, -145.6,30, -142,29.2, -140,30, -136.4,28, -133.6,25.6, -132,22.4, -133.6,20.4, -132.4,17.6, -134.8,14, -138.4,12.4, -140.4,14, -143.2,10.4, -146.8,11.2, -149.6,14, -148.4,16.8, -152,18.8, -152.8,22.4, -150,24, -151.2,26.4],
-  [-122.5,37.5, -120,34.5, -132.5,24.5, -135.5,27.5],
+  [-160.6,20.4, -157.2,22.8, -152.9,21.9, -150.5,22.8, -146.2,20.4, -142.8,17.6, -140.9,13.7, -142.8,11.3, -141.4,8, -144.2,3.6, -148.6,1.7, -151,3.6, -154.3,-0.7, -158.6,0.3, -162,3.6, -160.6,7, -164.9,9.4, -165.8,13.7, -162.5,15.6, -163.9,18.5],
+  [-122.5,37.5, -120,34.5, -144.8,16, -147.2,19],
 ];
 const ICE = [[-73,78.5, -60,82, -30,83.5, -18,80, -20,74, -22,70, -32,68, -40,65, -43,60, -48,61, -53,66.5, -54,70, -58,75.5, -68,76]]; // Greenland
 const LAKES = [[47,45, 51,47, 53.5,46, 53,42, 54,39, 53.5,37, 50,37, 49,39, 47.5,42]];                                               // Caspian Sea
