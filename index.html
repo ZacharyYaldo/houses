@@ -453,7 +453,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 9:40 AM ET · ccaf940';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 9:56 AM ET · d1eadeb';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -557,7 +557,7 @@ const CFG = {
   adult: 16,             // age at which a child can marry or lead a branch
   speeds: [1600, 600, 160],   // milliseconds per year
   toast: 2600,           // ms the small result message stays up after a routine action
-  breath: 200,           // pause after a card or report is answered, before time moves again
+  breath: 1000,          // pause after a card or report is answered, before time moves again
 };
 
 // One-line explanations shown when the player hovers over, or presses, a labelled field. Keyed by the label on screen.
@@ -662,44 +662,33 @@ const GUIDE = {
     ['Your goal', 'Take thrones by marriage, plot or war, and chase the ambition you chose. Each tab explains itself when you first open it.'],
   ],
   court: [
-    ['Local houses', 'Every other house in a land you rule runs something for you: granaries, markets, a garrison, shrines or scribes. Each one makes the land better, and the house lends you a fifth of its soldiers there.'],
-    ['Keeping them', 'A house works for you while it thinks well enough of you, holds no grievance and is not at war with you. Gifts and marriages win it over.'],
-    ['Posts', 'A house of your seat can hold a post in place of a child or relative. It does the work less well, but it grows fonder of you every year it serves.'],
-    ['Favours', 'A house you give a holding, a post or a feast in its honour owes you a favour. Call it in to have the house back your heir or send soldiers to your wars.'],
-    ['Owing', 'A house that likes you will agree without a favour, but then you owe it one, and you can owe only three at once. It will collect, and refusing costs you with every house of your seat.'],
-    ['Far lands', 'You can ask a house in any land you rule. One that has promised you something will not lead its land against you, which matters once your realm is stretched thin.'],
-    ['Driving one out', 'You win a quarter of its followers. The rest go to the other houses, or to a new family if none is left. What it ran stands empty and hurts the land until you give it to someone, and its kin by marriage hold a grievance.'],
+    ['Local houses', 'Every other house in a land you rule runs something for you and lends you soldiers, as long as it thinks well enough of you.'],
+    ['Favours', 'Give a house a holding, a post or a feast and it owes you a favour. Spend it to have the house back your heir or send soldiers.'],
+    ['Driving one out', 'You win a quarter of its followers, but what it ran stands empty and its kin by marriage hold a grievance.'],
   ],
   family: [
     ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
-    ['No heir', 'If the head dies with no living child, your ablest relative takes over and you lose a quarter of your prestige. With no relative either, a cousin does and you lose half.'],
-    ['Marriages', 'Marry a child aged 16 or older into another house. That house becomes an ally and lends soldiers in your wars.'],
-    ['Jobs and tutors', 'Give a grown child or relative a job: governor, commander, scholar or envoy. Pay a tutor to try to raise a child\'s ability.'],
-    ['Relatives', 'When a head dies, the heir\'s grown brothers and sisters stay at court. Each wants a job, a holding to run or a stipend. Give it and they warm to you; pass them over for years and they leave, taking followers with them.'],
-    ['A disputed succession', 'The houses of your seat and your grown relatives each stand for or against your heir. With under 60% behind the heir, the strongest voice against names a price when you die. Under 40%, refusing it means civil war.'],
-    ['Far lands', 'When a head dies, lands away from your seat may break away under a cousin. Loyal lands and an able heir make it far less likely.'],
+    ['Marriages and jobs', 'Marry a grown child into another house to make it an ally. Give a grown child or relative a job, or pay a tutor to raise a child\'s ability.'],
+    ['Relatives', 'Relatives at court each want something. Pass one over for years and they leave with followers, and they have a say in who follows you.'],
   ],
   goys: [
     [`Your ${LABEL.folk}`, `Your income is the tax your ${LABEL.folk} pay. Raise it and you earn more now, but they grow less loyal and may leave you or revolt.`],
     ['Building', 'Farms feed more people, schools speed up learning, roads open more trade routes. Each level costs more than the last.'],
-    ['A great feast', 'Once every ten years you can hold a great feast. Choose what it is for: your people\'s loyalty, presenting your heir to the houses of your seat, or honouring one house.'],
+    ['A great feast', 'Once every ten years you can hold a great feast: for your people\'s loyalty, to present your heir, or to honour one house.'],
   ],
   trade: [
-    ['Trade routes', 'A route pays you and your partner every year. Richer partners pay more.'],
-    ['Limited routes', 'You can hold only a few routes. Close a poor one to make room for a better one.'],
-    ['Borrowing', 'Another house will lend you part of its gold for ten years at interest. Repay early and you pay less interest. You can owe up to five years of your income.'],
-    ['Lending', 'A house at war or short of gold will borrow from you, and some will come and ask. Its record tells you how safe it is. If it cannot repay, you choose: wait, forgive it for a favour, seize what it runs, make it a subordinate house, or go to war.'],
-    ['Your credit', 'Every house can see who defaulted on whom. Default and the lender takes its own remedy, only houses joined or bound to you will lend for thirty years, and those charge more.'],
+    ['Trade routes', 'A route pays you and your partner every year. You can hold only a few, so close a poor one to make room for a better one.'],
+    ['Borrowing', 'Another house will lend you gold for ten years at interest. Default and every house sees it for thirty years.'],
+    ['Lending', 'A house at war or short of gold will borrow from you. If it cannot repay, you choose what to do about it.'],
   ],
   know: [
     ['Knowledge', 'Your seat\'s knowledge is counted as a year of real history. Schools, funding and trade raise it faster.'],
     ['Discoveries', 'Each discovery unlocks something: more building levels, more routes or new actions.'],
   ],
   power: [
-    ['War', 'March on a land next to one you rule to take its throne. A short sea crossing counts as next to; an ocean does not until ocean-crossing ships. Compare soldiers first. Houses joined to you by marriage or a promise add theirs.'],
-    ['Holding it', 'Every land you rule beyond three costs loyalty in the lands away from your seat, and so does every border between a land and your seat. A far land where your following is weak rises against you. Wars you start weary your people everywhere.'],
-    ['Plots', 'Slander a house, stir up its followers, seize a throne from inside, or drive a house out of a land you rule. Driving one out costs you what it ran for you; the Court page shows what that is.'],
-    ['Costs', 'Every move shows its price and what it does before you choose. A greyed-out move says why.'],
+    ['War', 'March on a land next to one you rule, by land or a short sea crossing, to take its throne. Compare soldiers first.'],
+    ['Holding it', 'A large, far-flung realm is less loyal, and a far land where your following is weak rises against you. Wars you start weary your people.'],
+    ['Plots', 'Slander a house, stir up its followers, seize a throne from inside, or drive a house out. Every move shows its price and effect first.'],
   ],
   world: [
     ['The world', 'See how every house ranks, how your world compares with real history, and the record of what has happened.'],
@@ -3225,7 +3214,8 @@ __m['js/ui/music.js'] = (() => {
 // Background music: a playlist that fades each track into the next. Every track fades in over its first seconds and out
 // over its last CFG.music.fade seconds in the file itself, so starting the next one that long before the end is a
 // crossfade on every device, the iPhone included, which will not let a page turn a track down. The first track is
-// inside the page (see build.js); the others are files beside it, fetched when wanted and skipped if they cannot be had.
+// inside the page (see build.js); the others are files beside it, downloaded whole as soon as the track before them starts
+// and skipped if they cannot be had.
 const { CFG, TRACKS } = __m['js/config.js'];
 
 // Takes the <audio> element in the page and returns a function to call on every tap: music off, or on.
@@ -3233,7 +3223,13 @@ function createMusic(first) {
   const decks = [first, new Audio()], tracks = [first.getAttribute('src'), ...TRACKS];
   let live = 0, next = 0, ready = false, misses = 0;        // the deck playing; the track waiting on the other deck
   const idle = () => decks[1 - live], play = d => d.play().catch(() => { /* refused: the next tap tries again */ });
-  const cue = n => { next = n % tracks.length; idle().src = tracks[next]; };                // put a track on the idle deck, ready for its turn
+  // Put a track on the idle deck, ready for its turn. A file is downloaded whole first, because an iPhone does not load a
+  // track ahead of playing it. A page opened straight from disk may not fetch, so there the deck loads it its own way.
+  function cue(n) {
+    const deck = idle(), url = tracks[next = n % tracks.length], set = src => { if (deck === idle() && url === tracks[next]) { URL.revokeObjectURL(deck.src); deck.src = src; } };
+    if (url.startsWith('data:') || location.protocol === 'file:') return set(url);
+    fetch(url).then(r => (r.ok ? r.blob() : Promise.reject())).then(b => set(URL.createObjectURL(b)), () => set(url));
+  }
   const turn = () => { const at = next; live = 1 - live; if (decks[live].paused) play(decks[live]); cue(at + 1); };   // the waiting track takes over
   decks.forEach((d, i) => {
     d.volume = CFG.music.volume; d.preload = 'auto';
@@ -3247,11 +3243,12 @@ function createMusic(first) {
     if (!decks[live].paused) return;
     play(decks[live]);
     if (ready) return;
-    ready = true; cue(1);
-    // An iPhone lets a page start a deck by itself only once a tap has started it: do that now, silently.
+    ready = true;
+    // An iPhone lets a page start a deck by itself only once a tap has started it: do that now, silently, with the track
+    // already in the page, and only then send for the next one.
     const d = idle();
-    d.muted = true;
-    d.play().then(() => { d.pause(); d.currentTime = 0; }).catch(() => { /* it gets its chance when its turn comes */ }).finally(() => { d.muted = false; });
+    d.muted = true; d.src = tracks[0];
+    d.play().then(() => d.pause(), () => { /* it gets its chance when its turn comes */ }).finally(() => { d.muted = false; cue(1); });
   };
 }
 
