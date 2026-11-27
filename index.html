@@ -448,7 +448,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 26, 2026, 6:46 PM ET · a1ee4e1';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 26, 2026, 7:03 PM ET · e4c1c17';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -520,7 +520,8 @@ const CFG = {
   // unpledged house stands against the heir; payoff: the price in action units; minor: an heir younger than this invites a regent;
   // passed: where a brother or sister abler than the heir starts out.
   contest: { safe: .6, war: .4, cold: -10, payoff: 4, minor: 21, passed: 45 },
-  court: { sour: -30, steward: .5, vacant: 1, thanks: 20, grudge: 30 },   // sour: a house thinking this little of the ruler withholds; vacant: an empty holding counts this much against
+  court: { sour: -30, steward: .5, vacant: 1, thanks: 20, grudge: 30, spoils: .25, muster: .2 },   // sour: a house thinking this little of the ruler withholds; vacant: an empty holding counts this much against;
+  // spoils: the part of a driven-out house's followers the ruler wins; muster: the part of its soldiers a working house lends the ruler
   split: { base: .04, per: .012, ability: .006, cap: .3, most: 3 },
   commanderRisk: .03, restless: .12,   // yearly chance a commander dies at war; added chance a far land breaks away under a passed-over governor
   feastRest: 10, feastLift: 14,   // years between great feasts, and the loyalty one adds (it fades by a tenth a year)
@@ -629,12 +630,12 @@ const GUIDE = {
     ['Your goal', 'Take thrones by marriage, plot or war, and chase the ambition you chose. Each tab explains itself when you first open it.'],
   ],
   court: [
-    ['Local houses', 'Every other house in a land you rule runs something for you: granaries, markets, a garrison, shrines or scribes. Each one makes the land better.'],
+    ['Local houses', 'Every other house in a land you rule runs something for you: granaries, markets, a garrison, shrines or scribes. Each one makes the land better, and the house lends you a fifth of its soldiers there.'],
     ['Keeping them', 'A house works for you while it thinks well enough of you, holds no grievance and is not at war with you. Gifts and marriages win it over.'],
     ['Posts', 'A house of your seat can hold a post in place of a child or relative. It does the work less well, but it grows fonder of you every year it serves.'],
     ['Favours', 'A house you give a holding, a post or a feast in its honour owes you a favour. Call it in to have the house back your heir or send soldiers to your wars.'],
     ['Owing', 'A house that likes you will agree without a favour, but then you owe it one. It will collect, and refusing costs you with every house of your seat.'],
-    ['Driving one out', 'What it ran stands empty and hurts the land until you give it to another house or to your own steward, who does it half as well. Its kin by marriage hold a grievance.'],
+    ['Driving one out', 'You win a quarter of its followers. The rest go to the other houses, or to a new family if none is left. What it ran stands empty and hurts the land until you give it to someone, and its kin by marriage hold a grievance.'],
   ],
   family: [
     ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
@@ -998,6 +999,8 @@ const sway = (a, b, by) => { a.op[b.id] = clamp(opinion(a, b) + by, -100, 100); 
 const grudge = (W, a, b) => W.ledger.some(e => e.k === 'grievance' && e.a === a.id && e.b === b.id);
 // The ledger's other entries: favours house a owes house b, and whether a has promised b something (see ASKS).
 const owes = (W, a, b) => W.ledger.filter(e => e.k === 'favour' && e.a === a.id && e.b === b.id);
+// Whether house o is bound to house lord by a promise or a post, and so will not plot against it.
+const bound = (W, o, lord) => W.ledger.some(e => e.k === 'commit' && e.a === o.id && e.b === lord.id) || Object.values(lord.given ?? {}).includes(o.id);
 const pledged = (W, a, b, what) => W.ledger.find(e => e.k === 'commit' && e.a === a.id && e.b === b.id && e.what === what);
 // Why house o will not work for the ruler of land r, or '' when it will.
 function balks(W, r, o) {
@@ -1224,6 +1227,8 @@ function refresh(W) {
     }
     const lord = W.houses[r.ruler];
     lord.crown += base(r) * CFG.crown; lord.thrones++;
+    // Houses that work with the ruler send a part of their own soldiers from this land when the ruler calls.
+    lord.levy += CFG.court.muster * sum(ids, id => (+id === r.ruler || balks(W, r, W.houses[id]) ? 0 : r.pop * r.shares[id].s * r.shares[id].loy / 100 * CFG.army * mil(r.know)));
   }
   for (const h of hs) {
     const trade = sum(pactsOf(W, h), o => (atWar(W, h, o) ? 0 : CFG.trade * Math.sqrt(h.base * o.base))) * (is(h, 'Merchant') ? 1.4 : 1);
@@ -1234,7 +1239,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, household, relative, base, mil, tied, pactsOf, atWar, opinion, sway, grudge, owes, pledged, balks, held, holder, job, boon, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, net, warBill, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, household, relative, base, mil, tied, pactsOf, atWar, opinion, sway, grudge, owes, bound, pledged, balks, held, holder, job, boon, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, net, warBill, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1649,8 +1654,8 @@ __m['js/sim/conflict.js'] = (() => {
 // Coups, civil wars and wars between realms.
 const { CFG } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
-const { rnd, chance, range, clamp, people, gold } = __m['js/sim/util.js'];
-const { house, ruled, holds, locals, is, sway, note, deed, bury, moveShare, dropShare, setRuler, strength } = __m['js/sim/state.js'];
+const { rnd, chance, range, clamp, sum, people, gold } = __m['js/sim/util.js'];
+const { house, ruled, holds, locals, is, sway, note, deed, bury, newHouse, moveShare, setRuler, strength } = __m['js/sim/state.js'];
 const { succeed } = __m['js/sim/family.js'];
 const { vacate, grieve } = __m['js/sim/court.js'];
 
@@ -1683,6 +1688,18 @@ function coup(W, h, r) {
 }
 
 // A ruler turns on a house with a following in its lands. The chance it works, then the attempt itself.
+// The following of a house driven out of land r: a part comes over to the ruler h, the rest goes to the other houses
+// there, or gathers under a new family when there is none. A ruler cannot empty a land of other houses.
+function scatter(W, r, h, t) {
+  moveShare(r, t.id, h.id, CFG.court.spoils);
+  const rest = r.shares[t.id].s, others = locals(W, r).filter(o => o !== h && o !== t), all = sum(others, o => r.shares[o.id].s);
+  delete r.shares[t.id];
+  for (const o of others) r.shares[o.id].s += rest * r.shares[o.id].s / all;
+  if (others.length) return;
+  const b = newHouse(W, r, { prestige: 3 });
+  r.shares[b.id] = { s: rest, loy: 55, favor: 0 }; sway(b, h, -40);
+  note(W, `What is left of House ${t.name}'s following in ${named(r.i)} gathers under a new family, House ${b.name}.`, { h: b.id, x: h.id, r: r.i, w: 1 });
+}
 const routOdds = (h, t) => clamp(.2 + .5 * (h.power / (t.power || 1) - .6) + (is(h, 'Warlike') ? .1 : 0), .1, .8);
 function purge(W, h, t) {
   const lands = ruled(W, h).filter(r => r.shares[t.id]), where = lands.map(r => named(r.i)).join(', ');
@@ -1698,8 +1715,7 @@ function purge(W, h, t) {
   for (const r of lands) {
     for (const o of locals(W, r)) if (o !== h && o !== t) sway(o, h, -15);
     vacate(W, r, t);
-    moveShare(r, t.id, h.id, .6);                          // most of its followers come over; the rest scatter
-    dropShare(W, r, t.id);
+    scatter(W, r, h, t);
     r.shares[h.id].favor -= 10; r.pop *= .99; r.waste = Math.min(.6, r.waste + .03);
   }
   grieve(W, t, h, `Drove House ${t.name} out of ${where}`);
@@ -1931,7 +1947,7 @@ const ACTIONS = {
     run: (W, h, r) => coup(W, h, r),
   },
   purge: {
-    big: true, group: 'power', kind: 'house', label: 'Drive out a house', verb: 'Drive out', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and most of its followers there become yours, but what it ran for you stands empty, your own grow less loyal, and its kin by marriage hold it against you. Lose and it rises against you in civil war.',
+    big: true, group: 'power', kind: 'house', label: 'Drive out a house', verb: 'Drive out', hint: 'Turn your soldiers on a house that has a following in a land you rule. Win and a quarter of its followers there become yours while the rest go to the other houses, or to a new family if there is none. What it ran for you stands empty, your own grow less loyal, and its kin by marriage hold it against you. Lose and it rises against you in civil war.',
     targets: (W, h) => alive(W).filter(o => o !== h && ruled(W, h).some(r => r.shares[o.id])), cost: (W, h) => unit(h) * 3,
     note: (W, h, t) => `${pct(routOdds(h, t))} chance. It holds ${ruled(W, h).filter(r => r.shares[t.id]).map(r => `${pct(r.shares[t.id].s)} of ${land(r)}`).join(', ')}. It runs ${ruled(W, h).flatMap(r => (r.shares[t.id]?.runs ?? []).map(k => `the ${HOLDINGS[k].name.toLowerCase()} of ${land(r)}`)).join(', ') || 'nothing'} for you.${trades(W, h, t)}`,
     reach: (W, h) => (h.thrones ? 'It has no following in a land you rule.' : 'Only a house that rules a land can drive another out.'),
@@ -2063,14 +2079,14 @@ __m['js/sim/ai.js'] = (() => {
 // How the other houses decide what to do: a few times a decade each tries one action its head's trait favours.
 const { CFG, TRAITS } = __m['js/config.js'];
 const { rnd, chance, pick, maxBy } = __m['js/sim/util.js'];
-const { house, opinion } = __m['js/sim/state.js'];
+const { house, opinion, bound } = __m['js/sim/state.js'];
 const { ACTIONS, barred, perform } = __m['js/sim/actions.js'];
 
 // Scores a target for actions where a random choice would be foolish. Zero means "not worth it".
 const share = (W, h, r) => r.shares[h.id].s;
 const PREFER = {
   war: (W, h, r) => (house(W, r.ruler).levy < h.levy * .8 && opinion(h, house(W, r.ruler)) < 30 ? h.levy / (house(W, r.ruler).levy + 1) : 0),
-  coup: (W, h, r) => (h.power > house(W, r.ruler).power * .75 ? 1 : 0),
+  coup: (W, h, r) => (h.power > house(W, r.ruler).power * .75 && !bound(W, h, house(W, r.ruler)) ? 1 : 0),
   marry: (W, h, t) => t.power, pact: (W, h, t) => t.base,
   farms: share, schools: share, roads: share, feast: (W, h, t) => +(t.p === 'folk'),
 };
@@ -3272,7 +3288,7 @@ function court(W, h) {
       ${others.length || r.own.length || r.vacant.length ? '' : '<p>No other house lives here, so nothing is run for you.</p>'}</div></details>`;
   };
   const served = holds(W, h).filter(r => r.ruler !== h.id);
-  return `<p class="legend-note">A house works for you while it thinks better than −${-CFG.court.sour} of you, holds no grievance and is not at war with you. Gifts and marriages win houses over. A house you give a holding, a post or a feast owes you a favour, which you can spend when you ask it for something.</p>`
+  return `<p class="legend-note">A house works for you while it thinks better than −${-CFG.court.sour} of you, holds no grievance and is not at war with you. A working house also lends you ${CFG.court.muster * 100}% of its soldiers in that land. Gifts and marriages win houses over. A house you give a holding, a post or a feast owes you a favour, which you can spend when you ask it for something.</p>`
     + tally + seats + (lands.length ? rows(lands, land) : state('lock', 'You rule no land', 'Take a throne and the houses there will run it for you.'))
     + (served.length ? `<section><h3>What you run for others</h3><ul class="allies notes">${rows(served, r => `<li>${place(r.i)}<small>The ${running(r, h)}, for ${ref(house(W, r.ruler), true)}</small></li>`)}</ul></section>` : '')
     + actionSection(W, 'feast') + (wrongs.length ? `<section><h3>Held against you · ${wrongs.length}</h3><ul class="allies notes">${rows(wrongs, e => `<li>${ref(house(W, e.a), true)}<small>${esc(e.why)}, in ${e.y}. Forgotten in ${CFG.court.grudge - (W.year - e.y)} years.</small></li>`)}</ul></section>` : '');
