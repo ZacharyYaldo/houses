@@ -467,7 +467,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 4:02 PM ET · d93d3b3';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 4:11 PM ET · 5a39878';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -2049,7 +2049,7 @@ __m['js/sim/actions.js'] = (() => {
 // Everything a house can do. The player's buttons and the AI both go through this one table.
 // kind: what a target is (house | region | kid | option | self | deal, which reads its own target with read() and names it with key()).
 // swap: a warning when the action would take something from someone else; the player must tap twice to go through with it. why() gives the reason a target is barred, or ''.
-// note() is an optional line of detail shown beside a target: what the player needs to know to decide.
+// note() is an optional line of detail shown beside a target: what the player needs to know to decide. rank() orders the targets on the page, best first.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
 // verb is the word on the button. said() gives the message shown after a routine action, when a log line would not do. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
 const { CFG, JOBS, HOLDINGS, ASKS, FEASTS, PROJECTS, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
@@ -2193,7 +2193,7 @@ const ACTIONS = {
   pact: {
     group: 'trade', kind: 'house', label: 'Open a trade route', verb: 'Open route', hint: 'Pays both houses every year and carries knowledge between your lands. It carries plague too.',
     targets: (W, h) => contacts(W, h).filter(t => !pactsOf(W, h).includes(t)), cost: (W, h) => unit(h),
-    note: (W, h, t) => `Would pay you about ${gold(routePay(h, t))} gold a year`,
+    note: (W, h, t) => `Would pay you about ${gold(routePay(h, t))} gold a year`, rank: (W, h, t) => routePay(h, t),
     reach: (W, h, t) => (pactsOf(W, h).includes(t) ? 'You already trade with them.' : FAR),
     why: (W, h, t) => (pactsOf(W, h).length >= routeCap(W, h) ? `All ${routeCap(W, h)} of your routes are in use` : pactsOf(W, t).length >= routeCap(W, t) ? 'Their routes are full' : atWar(W, h, t) ? 'You are at war' : opinion(t, h) < -30 ? 'They refuse you' : ''),
     run(W, h, t) {
@@ -3694,7 +3694,11 @@ const speedLabel = ms => Number((CFG.speeds[0] / ms).toFixed(1)) + '×';
 const hero = (W, h) => `<div class="person-hero"><div class="ruler-art">${illustration('court')}${portrait(h)}</div><div class="ruler-bio">${icon('crown')}<h2>${esc(h.head.n)}</h2><p>${trait(h.head.t)} · Age ${W.year - h.head.b}</p><span class="ability"${hint('ability')}>Ability <b>${h.head.a} / 10</b></span><span class="ability-track" aria-hidden="true"><i style="width:${h.head.a * 10}%"></i></span></div></div>`;
 
 const state = (symbol, title, text, tone = '') => `<div class="notice ${tone}">${icon(symbol)}<div><b>${title}</b><p>${text}</p></div></div>`;
-const realmTabs = g => `<nav class="tabs realm-tabs" aria-label="Realm">${rows(['goys', 'trade', 'seat', 'know', 'court'], k => `<button data-open="group:${k}" class="${g === k ? 'on' : ''}" aria-current="${g === k ? 'page' : 'false'}">${icon(UI.groupIcons[k])}${GROUPS[k]}</button>`)}</nav>`;
+// A Realm tab is shown once it has been opened (W.taught) or has something in it: Seat when a project can be begun,
+// Court when the house rules a land or runs something for another.
+const inUse = { seat: (W, h) => { const r = W.regions[h.seat]; return r.ruler === h.id && (!!r.built?.length || !!r.job || openProjects(W, h).some(k => !barred(W, h, 'project', { k }))); },
+  court: (W, h) => holds(W, h).some(r => r.ruler === h.id || r.shares[h.id].runs?.length) };
+const realmTabs = (g, W = null) => `<nav class="tabs realm-tabs" aria-label="Realm">${rows(['goys', 'trade', 'seat', 'know', 'court'].filter(k => k === g || !W || !inUse[k] || W.taught?.[k] || inUse[k](W, me(W))), k => `<button data-open="group:${k}" class="${g === k ? 'on' : ''}" aria-current="${g === k ? 'page' : 'false'}">${icon(UI.groupIcons[k])}${GROUPS[k]}</button>`)}</nav>`;
 
 function hud(W, paused, speed) {
   const h = me(W), needs = todo(W, h).filter(x => x.need).length;
@@ -3760,9 +3764,17 @@ function bulk(W, id) {
   return `<button class="bulk" data-go="all:${id}" ${paid.length ? '' : 'disabled'}>${paid.length === open.length ? `Build in all ${open.length} lands` : `Build in ${paid.length} of ${open.length} lands`}<em>${gold(total)} gold</em></button>`;
 }
 
+// The action sections of a page. One with no target at all is left out; those barred for every target (whatever the
+// house's gold) are folded away together at the foot, where each still says why.
+function sections(W, page, ids, open = []) {
+  const h = me(W), reach = id => (ACTIONS[id].kind === 'self' ? [null] : ACTIONS[id].targets(W, h)), can = id => reach(id).some(t => !ACTIONS[id].why?.(W, h, t));   // short of gold alone does not fold a section away
+  const live = ids.filter(id => reach(id).length), not = live.filter(id => !can(id));
+  return rows(live.filter(can), id => actionSection(W, id, open.includes(id)))
+    + (not.length ? `<details class="action-section" data-section="not-${page}"><summary><span>Not possible now</span><small>${not.length}</small>${icon('chevron')}</summary><div class="action-body">${rows(not, id => actionSection(W, id))}</div></details>` : '');
+}
 // Actions still use the shared ACTIONS table. UI grouping does not change targets, costs or eligibility.
 function actionSection(W, id, expanded = false) {
-  const h = me(W), a = ACTIONS[id], targets = a.kind === 'self' ? [null] : a.targets(W, h);
+  const h = me(W), a = ACTIONS[id], all = a.kind === 'self' ? [null] : a.targets(W, h), targets = a.rank ? [...all].sort((x, y) => a.rank(W, h, y) - a.rank(W, h, x)) : all;   // rank: best first on the page
   const ready = targets.filter(t => !barred(W, h, id, t)).length;
   const list = rows(targets, t => `<li class="action-row" data-search="${esc(a.kind === 'house' ? t.name + ' ' + REGIONS[t.seat].name : a.kind === 'region' ? REGIONS[t.i].name : '')}"><span>${targetName(W, a, t)}${detail(W, a, t)}</span>${a.now?.(h) === t ? `<b class="on">${icon('check')}${UI.current}</b>` : go(W, id, t)}</li>`);
   return `<details class="action-section" data-section="${id}" ${expanded ? 'open' : ''}><summary><span>${a.label}</span><small>${ready} ${UI.available}</small>${icon('chevron')}</summary><div class="action-body"><p>${a.hint}</p>${a.bulk ? bulk(W, id) : ''}${targets.length > 8 ? `<input class="target-filter" type="search" aria-label="${UI.filter}" placeholder="${UI.filter}">` : ''}<ul class="${a.kind === 'option' ? 'option-list' : ''}">${list || `<li class="none">${UI.none}</li>`}</ul></div></details>`;
@@ -3823,16 +3835,15 @@ function relatives(W, h) {
       <div class="child-acts">${tap(W, h, 'stipend', x, `Stipend<em>${CFG.kin.stipend * 100}% of income</em>`, x.paid)}</div>${posts(W, h, x)}</div>`);
 }
 
-// Loans on the Trade page: what the house owes and is owed, loan by loan, its own credit, and the moves.
+// Loans on the Trade page, once there is one: what the house owes and is owed, loan by loan, and its own credit.
 function lending(W, h) {
   const mine = loans(W, h), out = loans(W, h, 'b'), all = list => gold(sum(list, e => owed(W, e)));
   const under = W.ledger.filter(e => e.k === 'commit' && e.what === 'tribute' && e.b === h.id && !house(W, e.a).dead);
   const line = (e, o, verb) => `<li>${ref(o, true)}<small>${verb} ${gold(e.gold)} gold in ${e.y} at ${pct(e.rate)} a year. ${gold(owed(W, e))} today, ${gold(atTerm(e))} when it falls due in ${e.due}.</small></li>`;
-  return `<section><h3>Loans</h3>${boxes(box('You owe', all(mine), 'gold today'), box('Owed to you', all(out), 'gold today'))}
+  return (mine.length + out.length ? `<section><h3>Loans</h3>${boxes(box('You owe', all(mine), 'gold today'), box('Owed to you', all(out), 'gold today'))}
     <p class="legend-note">${tipped(TIPS.Credit, 'Your credit')}: ${record(W, h).toLowerCase()}. A house would lend to you at about ${pct(rateFor(W, h))} a year.</p>
-    ${mine.length + out.length ? `<ul class="allies notes">${rows(mine, e => line(e, house(W, e.b), 'You borrowed'))}${rows(out, e => line(e, house(W, e.a), 'It borrowed'))}</ul>` : ''}</section>`
-    + (under.length ? `<section><h3>Subordinate houses</h3><ul class="allies notes">${rows(under, e => `<li>${ref(house(W, e.a), true)}<small>Pays you ${gold(house(W, e.a).inc / (1 - CFG.loan.tribute) * CFG.loan.tribute)} gold a year and sends soldiers to your wars, until ${e.until}.</small></li>`)}</ul></section>` : '')
-    + actionSection(W, 'repay', true) + actionSection(W, 'borrow') + actionSection(W, 'lend');
+    ${mine.length + out.length ? `<ul class="allies notes">${rows(mine, e => line(e, house(W, e.b), 'You borrowed'))}${rows(out, e => line(e, house(W, e.a), 'It borrowed'))}</ul>` : ''}</section>` : '')
+    + (under.length ? `<section><h3>Subordinate houses</h3><ul class="allies notes">${rows(under, e => `<li>${ref(house(W, e.a), true)}<small>Pays you ${gold(house(W, e.a).inc / (1 - CFG.loan.tribute) * CFG.loan.tribute)} gold a year and sends soldiers to your wars, until ${e.until}.</small></li>`)}</ul></section>` : '');
 }
 // The Seat page: what the seat is, the project under way, what could be begun, and what stands there already.
 function seat(W, h) {
@@ -3918,23 +3929,23 @@ function familyGroup(W, h) {
 function group(W, g) {
   const h = me(W), intro = `<p class="page-intro">${UI.subtitles[g]}</p>`;
   if (g === 'family') return familyGroup(W, h);
-  if (g === 'know') return realmTabs(g) + research(W, h);
-  if (g === 'court') return realmTabs(g) + intro + court(W, h);
-  if (g === 'seat') return realmTabs(g) + intro + seat(W, h);
+  if (g === 'know') return realmTabs(g, W) + research(W, h);
+  if (g === 'court') return realmTabs(g, W) + intro + court(W, h);
+  if (g === 'seat') return realmTabs(g, W) + intro + seat(W, h);
 
-  if (g === 'goys') return realmTabs(g) + intro + boxes(box(LABEL.folk, people(followers(W, h))), box('Loyal', `${loyalty(W, h)}%`, `Revolt risk below ${CFG.revoltAt}%`))
+  if (g === 'goys') return realmTabs(g, W) + intro + boxes(box(LABEL.folk, people(followers(W, h))), box('Loyal', `${loyalty(W, h)}%`, `Revolt risk below ${CFG.revoltAt}%`))
     + taxOptions(W) + actionSection(W, 'feast', true)
     + `<details class="action-section" data-section="lands"><summary><span>${UI.lands}</span><small>${holds(W, h).length}</small>${icon('chevron')}</summary><p class="legend-note">Loyalty moves a little each year toward the level shown. Lower tax, a smaller share, building and a governor raise it; war damage, plague, wars you start and a realm of many far lands lower it.</p><ul class="land-list">${rows(holds(W, h), r => { const parts = mood(W, r, h).filter(p => Math.abs(p[1]) >= .5), want = clamp(sum(parts, p => p[1]), 0, 100), now = Math.round(r.shares[h.id].loy);
       return `<li>${place(r.i)}<span>${pct(r.shares[h.id].s)} share · ${now}% loyal, ${Math.round(want) > now ? 'rising' : Math.round(want) < now ? 'falling' : 'steady'} toward ${Math.round(want)}%</span><small class="mood">${rows(parts, ([label, n]) => `<i class="${n < 0 ? 'down' : ''}">${label} ${n > 0 ? '+' : '−'}${Math.round(Math.abs(n))}</i>`)}</small></li>`; })}</ul></details>`
-    + rows(['farms', 'schools', 'roads'], id => actionSection(W, id));
-  if (g === 'trade') return realmTabs(g) + `<div class="feature-hero">${illustration('market')}<div><small>${UI.nav.realm}</small><h2>Trade</h2><p>${UI.subtitles.trade}</p></div></div>`
+    + sections(W, g, ['farms', 'schools', 'roads']);
+  if (g === 'trade') return realmTabs(g, W) + `<div class="feature-hero">${illustration('market')}<div><small>${UI.nav.realm}</small><h2>Trade</h2><p>${UI.subtitles.trade}</p></div></div>`
     + boxes(box('Trade routes open', `${pactsOf(W, h).length} / ${routeCap(W, h)}`), box('Trade income', `+${gold(h.trade)}`, 'gold / year'))
     + `<p class="legend-note">Your limit of ${routeCap(W, h)}: ${routeParts(W, h).filter(p => p[1]).map(p => `${p[1]} from ${p[0]}`).join(', ')}. Build roads in your seat (${REGIONS[h.seat].name}) to raise it.${pactsOf(W, h).length > routeCap(W, h) ? ' You hold more than your limit: you keep them, but cannot open another until you are under it.' : ''}</p>`
-    + actionSection(W, 'pact', true) + actionSection(W, 'unpact', !!pactsOf(W, h).length) + lending(W, h);
+    + lending(W, h) + sections(W, g, ['pact', 'unpact', 'repay', 'borrow', 'lend'], ['repay']);
   const wars = W.wars.filter(w => w.a === h.id || w.b === h.id);
   return intro + feud(W) + boxes(box('Soldiers', soldiers(h)), box('Soldiers from allies', gold(allyAid(W, h) * 1000)), box('Prestige', Math.round(h.prestige)), box('Wars you are in', wars.length), box('War weariness', Math.round(h.weary ?? 0)))
     + (wars.length ? `<section class="fronts"><h3>${UI.activeWars}</h3><p class="legend-note">Each war costs ${CFG.warCost * 100}% of your gold every year: about ${gold(warBill(W, h))} gold this year, against an income of ${gold(h.inc)}.</p>${rows(wars, w => front(W, h, w))}</section>` : state('shield', UI.noWars, ''))
-    + rows([...(wars.length ? ['reinforce', 'assault', 'yield', 'peace'] : []), 'war', 'coup', 'purge', 'gift', 'slander', 'stir', 'press', 'bomb'], id => actionSection(W, id));
+    + sections(W, g, [...(wars.length ? ['reinforce', 'assault', 'yield', 'peace'] : []), 'war', 'coup', 'purge', 'gift', 'slander', 'stir', 'press', 'bomb']);
 }
 
 // The To do page: each case that needs a decision with its best moves on the row, then what gold could buy.
@@ -4342,7 +4353,7 @@ document.addEventListener('click', e => {
   if (el.dataset.reveal) {
     const section = $('sheet').querySelector(`[data-section="${el.dataset.reveal}"]`);
     if (section) {
-      section.open = true;
+      for (let d = section; d; d = d.parentElement.closest('details')) d.open = true;   // and whatever it is folded inside
       section.querySelector('summary').focus({ preventScroll: true });
       section.scrollIntoView({ block: 'start' });
     }
