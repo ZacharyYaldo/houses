@@ -452,7 +452,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 1:44 AM ET · eac7221';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 1:51 AM ET · 7311380';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -521,8 +521,8 @@ const CFG = {
   // years), trust less for each loan repaid, never under floor; part: how much of its gold a lender will part with; years: how
   // many years of income a borrower may owe in all; more/dearer: the one extension and what it adds to the rate; seize: the
   // following a lender takes on a default; ask/gap/lean: how often other houses ask the player for a loan, and how little gold
-  // (in years of income) makes one want it; tribute/bond: what a subordinate house pays of its income, and for how long.
-  loan: { term: 10, rate: .06, risk: .03, trust: .005, floor: .03, part: .4, years: 5, memory: 30, more: 5, dearer: .02, seize: .3, ask: .06, gap: 6, lean: 2, tribute: .1, bond: 40 },
+  // (in years of income) makes one want it; want: the years of income one asks for; tribute/bond: what a subordinate house pays of its income, and for how long.
+  loan: { term: 10, rate: .06, risk: .03, trust: .005, floor: .03, part: .4, years: 5, want: 3, memory: 30, more: 5, dearer: .02, seize: .3, ask: .15, gap: 6, lean: 2, tribute: .1, bond: 40 },
   // The ledger. warm: the opinion at which a house agrees to an ask without owing you; keep: years a favour is remembered;
   // call: yearly chance a house collects a favour you owe, no sooner than gap years after the last; snub: what refusing costs with every house of your seat.
   ledger: { warm: 20, keep: 40, call: .08, gap: 8, snub: 10, honour: 20, most: 3 },   // most: favours a house can owe at once before no one takes its word
@@ -678,6 +678,7 @@ const GUIDE = {
     ['Trade routes', 'A route pays you and your partner every year. Richer partners pay more.'],
     ['Limited routes', 'You can hold only a few routes. Close a poor one to make room for a better one.'],
     ['Borrowing', 'Another house will lend you part of its gold for ten years at interest. Repay early and you pay less interest. You can owe up to five years of your income.'],
+    ['Lending', 'A house at war or short of gold will borrow from you, and some will come and ask. Its record tells you how safe it is. If it cannot repay, you choose: wait, forgive it for a favour, seize what it runs, make it a subordinate house, or go to war.'],
     ['Your credit', 'Every house can see who defaulted on whom. Default and the lender takes its own remedy, only houses joined or bound to you will lend for thirty years, and those charge more.'],
   ],
   know: [
@@ -1275,6 +1276,11 @@ function refresh(W) {
     h.levy *= ability(h) * (is(h, 'Warlike') ? 1.3 : 1) * (1 + job(W, h, 'commander'));
     h.power = (h.levy + Math.sqrt(h.gold) * 2) * (1 + h.prestige / 100);
   }
+  // A subordinate house pays part of its income to the house it bowed to.
+  for (const e of W.ledger) if (e.k === 'commit' && e.what === 'tribute' && !W.houses[e.a].dead && !W.houses[e.b].dead) {
+    const due = Math.max(0, W.houses[e.a].inc) * CFG.loan.tribute;
+    W.houses[e.a].inc -= due; W.houses[e.b].inc += due;
+  }
 }
 
 return { house, alive, ruled, holds, locals, is, ability, household, relative, base, mil, tied, pactsOf, atWar, opinion, sway, grudge, owes, bound, pledged, balks, held, holder, job, strain, boon, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, net, warBill, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
@@ -1558,7 +1564,7 @@ function fill(W, r, n, to) {
 // promised b is void.
 function grieve(W, a, b, why) {
   const hurt = alive(W).filter(o => o !== b && (o === a || tied(W, o, a))).map(o => o.id);
-  W.ledger = W.ledger.filter(e => !(e.b === b.id && hurt.includes(e.a) && e.k !== 'favour'));
+  W.ledger = W.ledger.filter(e => !(e.b === b.id && hurt.includes(e.a) && (e.k === 'grievance' || e.k === 'commit')));   // an older grievance is replaced; debts and favours stand
   for (const id of hurt) W.ledger.push({ k: 'grievance', a: id, b: b.id, y: W.year, why });
 }
 const grievances = (W, h) => W.ledger.filter(e => e.k === 'grievance' && e.b === h.id && !W.houses[e.a].dead);
@@ -1816,7 +1822,7 @@ __m['js/sim/loans.js'] = (() => {
 const { CFG } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { clamp, maxBy, sum } = __m['js/sim/util.js'];
-const { alive, ruled, locals, linked, tied, bound, atWar, grudge, opinion, sway, note, moveShare } = __m['js/sim/state.js'];
+const { alive, ruled, locals, linked, tied, bound, atWar, grudge, opinion, sway, note, moveShare, fronts } = __m['js/sim/state.js'];
 const { owe, grieve, vacate } = __m['js/sim/court.js'];
 const { startWar } = __m['js/sim/conflict.js'];
 
@@ -1840,6 +1846,15 @@ function offer(W, o, h) {
     : bad.some(e => e.b === o.id) ? `You defaulted on it in ${bad.find(e => e.b === o.id).y}` : bad.length && !friend ? `You defaulted in ${bad.at(-1).y}. Until ${bad.at(-1).y + CFG.loan.memory} only a house joined or bound to you will lend`
       : opinion(o, h) <= CFG.court.sour ? 'It thinks too little of you' : room < 1 ? `You already owe ${CFG.loan.years} years of your income` : amount < 1 ? 'It has no gold to spare' : '';
   return why ? { why } : { gold: amount, rate: rateFor(W, h, friend) };
+}
+// Whether a house has a use for a loan: it is at war, or has little gold beside its income.
+const wants = (W, o) => fronts(W, o).length > 0 || o.gold < o.inc * CFG.loan.lean;
+// What house o would borrow from house h: { gold, rate }, or { why } when it will not. It takes what its income can
+// carry, up to the part of h's gold a lender parts with, at the rate its own record earns.
+function ask(W, o, h) {
+  const room = Math.min(o.inc * CFG.loan.want, o.inc * CFG.loan.years - sum(loans(W, o), e => e.gold)), amount = Math.floor(Math.min(h.gold * CFG.loan.part, room));
+  const why = atWar(W, o, h) ? 'You are at war' : loans(W, o).some(e => e.b === h.id) ? 'It already owes you a loan' : !wants(W, o) ? 'It has no need of a loan now' : room < 1 ? 'It already owes all its income can carry' : amount < 1 ? 'You have too little gold to lend' : '';
+  return why ? { why } : { gold: amount, rate: rateFor(W, o, tied(W, o, h) || bound(W, o, h)) };
 }
 // House o lends house h `amount` at `rate`, to be repaid in CFG.loan.term years.
 function lend(W, o, h, amount, rate) {
@@ -1899,7 +1914,7 @@ function inherit(W) {
   }
 }
 
-return { loans, owed, atTerm, defaults, rateFor, record, offer, lend, repay, extend, fail, seize, recourse, threat, collect, inherit };
+return { loans, owed, atTerm, defaults, rateFor, record, offer, wants, ask, lend, repay, extend, fail, seize, recourse, threat, collect, inherit };
 })();
 __m['js/sim/actions.js'] = (() => {
 // Everything a house can do. The player's buttons and the AI both go through this one table.
@@ -1915,7 +1930,7 @@ const { house, alive, holds, ruled, locals, balks, household, holder, job, grudg
 const { grown, adults, unwed, wed } = __m['js/sim/family.js'];
 const { coup, purge, routOdds, startWar, assault } = __m['js/sim/conflict.js'];
 const { fill, owe, drop, grieve, terms, promise, pledge } = __m['js/sim/court.js'];
-const { loans, owed, atTerm, offer, lend, repay } = __m['js/sim/loans.js'];
+const { loans, owed, atTerm, offer, ask, lend, repay, record } = __m['js/sim/loans.js'];
 
 const land = r => named(r.i);
 const rivals = (W, h) => alive(W).filter(o => o !== h && holds(W, h).some(r => r.shares[o.id]));
@@ -2072,6 +2087,14 @@ const ACTIONS = {
     note(W, h, t) { const e = loans(W, h).find(x => x.b === t.id); return `You owe ${gold(owed(W, e))} gold today, and ${gold(atTerm(e))} if you wait until ${e.due}`; },
     said: (W, h, t) => `Your loan from House ${t.name} is repaid.`,
     run(W, h, t) { repay(W, loans(W, h).find(e => e.b === t.id)); },
+  },
+  lend: {
+    group: 'trade', kind: 'house', label: 'Lend gold', verb: 'Lend', hint: `A house at war or short of gold will borrow from you for ${CFG.loan.term} years, at a rate set by its record. If it cannot repay, you choose what to do about it.`,
+    targets: contacts, reach: () => FAR,
+    why: (W, h, t) => ask(W, t, h).why ?? '',
+    note(W, h, t) { const o = ask(W, t, h); return o.why ? `Credit: ${record(W, t).toLowerCase()}` : `Borrows ${gold(o.gold)} gold at ${pct(o.rate)} a year: ${gold(o.gold * (1 + o.rate * CFG.loan.term))} back in ${W.year + CFG.loan.term}. Credit: ${record(W, t).toLowerCase()}`; },
+    said: (W, h, t) => { const e = loans(W, t).find(x => x.b === h.id); return `You lend House ${t.name} ${gold(e.gold)} gold. It owes you ${gold(atTerm(e))} in ${e.due}.`; },
+    run(W, h, t) { const o = ask(W, t, h); lend(W, h, t, o.gold, o.rate); sway(t, h, 10); },
   },
   unpact: {
     group: 'trade', kind: 'house', label: 'Close a trade route', verb: 'Close route', hint: 'Frees a route for a richer partner.', targets: pactsOf,
@@ -2634,8 +2657,8 @@ __m['js/sim/step.js'] = (() => {
 // The yearly tick, and what happens at the close of each century.
 const { CFG, END, ERA, LABEL, UNLOCKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
-const { clamp, chance, pick, maxBy } = __m['js/sim/util.js'];
-const { house, alive, holds, ruled, is, note, bury, refresh, knows, sway, job, fronts, opinion } = __m['js/sim/state.js'];
+const { clamp, chance, pick, maxBy, gold } = __m['js/sim/util.js'];
+const { house, alive, holds, ruled, contacts, is, note, bury, refresh, knows, sway, job, fronts, opinion } = __m['js/sim/state.js'];
 const { stepNature } = __m['js/sim/nature.js'];
 const { stepRegion } = __m['js/sim/realm.js'];
 const { stepWar } = __m['js/sim/conflict.js'];
@@ -2645,7 +2668,7 @@ const { standings } = __m['js/sim/score.js'];
 const { tellStory } = __m['js/sim/stories.js'];
 const { stepGoals } = __m['js/sim/goals.js'];
 const { forget } = __m['js/sim/court.js'];
-const { loans, inherit } = __m['js/sim/loans.js'];
+const { loans, owed, repay, ask, inherit } = __m['js/sim/loans.js'];
 
 function stepYear(W) {
   W.year++;
@@ -2708,6 +2731,15 @@ function watch(W) {
   const sore = holds(W, h).find(r => r.shares[h.id].loy < 35);
   if (sore && W.year - (W.asked ?? -99) >= 12) { W.asked = W.year; W.cards.push({ type: 'petition', r: sore.i }); }
   for (const e of loans(W, h)) if (W.year >= e.due && !W.cards.some(c => c.type === 'due' && c.b === e.b)) W.cards.push({ type: 'due', b: e.b });   // a loan the player owes falls due
+  for (const e of loans(W, h, 'b')) if (W.year >= e.due) {   // a loan the player made falls due: the debtor pays if it can, and at war only if it can well spare the gold
+    const o = house(W, e.a), all = owed(W, e);
+    if (o.gold >= all * (fronts(W, o).length ? 2 : 1)) { repay(W, e); W.cards.push({ type: 'news', title: 'A loan is repaid', txt: `House ${o.name} repays the ${gold(e.gold)} gold you lent in ${e.y}: ${gold(all)} with interest.` }); }
+    else if (!W.cards.some(c => c.type === 'unpaid' && c.a === e.a)) W.cards.push({ type: 'unpaid', a: e.a });
+  }
+  if (W.year - (W.sought ?? -99) >= CFG.loan.gap && chance(W, CFG.loan.ask)) {   // now and then a house in need asks the player for a loan
+    const o = contacts(W, h).find(o => !ask(W, o, h).why && opinion(o, h) > CFG.court.sour);
+    if (o) { W.sought = W.year; W.cards.push({ type: 'borrow', a: o.id }); }
+  }
   const due = W.ledger.find(e => e.k === 'favour' && e.a === h.id);   // a favour the player owes may be called in
   if (due && W.year - (W.called ?? -99) >= CFG.ledger.gap && chance(W, CFG.ledger.call)) { W.called = W.year; W.cards.push({ type: 'favour', from: due.b }); }
 }
@@ -2746,12 +2778,12 @@ const { CFG, GUIDE, LABEL, TAXES, JOBS, ASKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { NATURE } = __m['js/data/history.js'];
 const { gold, pct } = __m['js/sim/util.js'];
-const { house, holds, alive, locals, tied, opinion, sway, note, fullName, unit, owes, household, relative } = __m['js/sim/state.js'];
-const { drop, grieve, pledge } = __m['js/sim/court.js'];
-const { loans, owed, repay, extend, collect, threat } = __m['js/sim/loans.js'];
+const { house, holds, ruled, alive, locals, tied, opinion, sway, note, fullName, unit, owes, household, relative } = __m['js/sim/state.js'];
+const { drop, grieve, pledge, owe } = __m['js/sim/court.js'];
+const { loans, owed, repay, extend, collect, threat, ask, lend, fail, seize, record } = __m['js/sim/loans.js'];
 const { heirOf, depart } = __m['js/sim/family.js'];
 const { GOALS, goalReward } = __m['js/sim/goals.js'];
-const { ACTIONS } = __m['js/sim/actions.js'];
+const { ACTIONS, barred } = __m['js/sim/actions.js'];
 const { startWar } = __m['js/sim/conflict.js'];
 const { STORIES } = __m['js/sim/stories.js'];
 
@@ -2835,6 +2867,37 @@ const CARDS = {
         { label: 'Repay it', ...pay(W, all), run() { repay(W, e); } },
         { label: `Ask for ${CFG.loan.more} more years`, bar: e.more || cold, hint: e.more ? 'It has already waited once' : cold ? 'It thinks too little of you to wait' : `Interest runs on at ${pct(e.rate + CFG.loan.dearer)} a year`, run() { extend(W, e); } },
         { label: 'Default', hint: `${threat(W, e)}. Every house will see the default for ${CFG.loan.memory} years`, run() { collect(W, e); } },
+      ],
+    };
+  },
+  // Another house asks the player for a loan.
+  borrow(W, c) {
+    const h = me(W), o = house(W, c.a), terms = ask(W, o, h), foe = W.wars.find(w => w.a === o.id || w.b === o.id);
+    if (o.dead || terms.why) return null;
+    return {
+      title: 'A house asks for a loan', who: o.id,
+      text: `House ${o.name}, ${foe ? `at war with House ${house(W, foe.a === o.id ? foe.b : foe.a).name}` : 'short of gold'}, asks to borrow ${gold(terms.gold)} gold for ${CFG.loan.term} years at ${pct(terms.rate)} a year. That is ${gold(terms.gold * (1 + terms.rate * CFG.loan.term))} back in ${W.year + CFG.loan.term}. Its credit: ${record(W, o).toLowerCase()}.`,
+      opts: [
+        { label: 'Lend it', hint: `You hand over ${gold(terms.gold)} gold now. It thinks 10 better of you`, run() { lend(W, h, o, terms.gold, terms.rate); sway(o, h, 10); } },
+        { label: 'Refuse', hint: 'It thinks 5 less of you', run() { sway(o, h, -5); } },
+      ],
+    };
+  },
+  // A house that owes the player cannot repay. The lender chooses the remedy.
+  unpaid(W, c) {
+    const h = me(W), o = house(W, c.a), e = loans(W, o).find(x => x.b === h.id);
+    if (!e) return null;
+    const all = gold(owed(W, e)), land = ruled(W, h).find(r => r.shares[o.id]), target = ACTIONS.war.targets(W, h).find(r => r.ruler === o.id && !barred(W, h, 'war', r)), years = CFG.loan.bond;
+    return {
+      title: 'A loan goes unpaid', who: o.id, text: `House ${o.name} owes you ${all} gold and has ${gold(o.gold)}. What it lacks, it cannot pay.`,
+      opts: [
+        { label: `Give it ${CFG.loan.more} more years`, bar: !!e.more, hint: e.more ? 'You have already waited once' : `Interest runs on at ${pct(e.rate + CFG.loan.dearer)} a year`, run() { extend(W, e); } },
+        { label: 'Forgive it for a favour', hint: 'The debt is struck off with no mark on its record. It owes you a favour and thinks 20 better of you', run() { W.ledger.splice(W.ledger.indexOf(e), 1); owe(W, o, h, 'Forgave its loan'); sway(o, h, 20); } },
+        land ? { label: 'Seize what it runs', hint: `You take what it runs in ${named(land.i)} and ${Math.round(CFG.loan.seize * 100)}% of its following there. It holds a grievance`, run() { fail(W, e); seize(W, land, h, o); grieve(W, o, h, 'Seized what it ran over a debt'); } }
+          : { label: 'Take what gold it has', hint: `You get ${gold(o.gold)} of the ${all} gold. It thinks 20 less of you`, run() { fail(W, e); h.gold += o.gold; o.gold = 0; sway(o, h, -20); } },
+        { label: 'Make it a subordinate house', bar: o.power >= h.power, hint: o.power >= h.power ? 'It is too strong to bow to you' : `For ${years} years it pays you ${CFG.loan.tribute * 100}% of its income, sends soldiers to your wars and will not plot against you`,
+          run() { fail(W, e); pledge(W, o, h, 'tribute', years); pledge(W, o, h, 'soldiers', years); sway(o, h, -20); } },
+        { label: 'Treat it as grounds for war', bar: !target, hint: target ? `You march on ${named(target.i)} at once, at no cost in gold` : 'None of its lands is within your reach', run() { fail(W, e); startWar(W, h, target); } },
       ],
     };
   },
@@ -2931,7 +2994,7 @@ function witness(W, title, run, who, chose) {
   return true;
 }
 
-const WEIGHTY = ['story', 'offer', 'demand', 'favour', 'contest', 'due'];             // card types whose outcome gets a result card
+const WEIGHTY = ['story', 'offer', 'demand', 'favour', 'contest', 'due', 'unpaid'];             // card types whose outcome gets a result card
 function answer(W, i) {
   const view = nextCard(W), raw = W.cards.shift(), opt = view.opts[i];
   if (!WEIGHTY.includes(raw.type)) return void opt.run?.();
@@ -3441,11 +3504,13 @@ function relatives(W, h) {
 // Loans on the Trade page: what the house owes and is owed, loan by loan, its own credit, and the moves.
 function lending(W, h) {
   const mine = loans(W, h), out = loans(W, h, 'b'), all = list => gold(sum(list, e => owed(W, e)));
+  const under = W.ledger.filter(e => e.k === 'commit' && e.what === 'tribute' && e.b === h.id && !house(W, e.a).dead);
   const line = (e, o, verb) => `<li>${ref(o, true)}<small>${verb} ${gold(e.gold)} gold in ${e.y} at ${pct(e.rate)} a year. ${gold(owed(W, e))} today, ${gold(atTerm(e))} when it falls due in ${e.due}.</small></li>`;
   return `<section><h3>Loans</h3>${boxes(box('You owe', all(mine), 'gold today'), box('Owed to you', all(out), 'gold today'))}
     <p class="legend-note">${tipped(TIPS.Credit, 'Your credit')}: ${record(W, h).toLowerCase()}. A house would lend to you at about ${pct(rateFor(W, h))} a year.</p>
     ${mine.length + out.length ? `<ul class="allies notes">${rows(mine, e => line(e, house(W, e.b), 'You borrowed'))}${rows(out, e => line(e, house(W, e.a), 'It borrowed'))}</ul>` : ''}</section>`
-    + actionSection(W, 'repay', true) + actionSection(W, 'borrow');
+    + (under.length ? `<section><h3>Subordinate houses</h3><ul class="allies notes">${rows(under, e => `<li>${ref(house(W, e.a), true)}<small>Pays you ${gold(house(W, e.a).inc / (1 - CFG.loan.tribute) * CFG.loan.tribute)} gold a year and sends soldiers to your wars, until ${e.until}.</small></li>`)}</ul></section>` : '')
+    + actionSection(W, 'repay', true) + actionSection(W, 'borrow') + actionSection(W, 'lend');
 }
 const running = (r, o) => r.shares[o.id].runs.map(k => HOLDINGS[k].name.toLowerCase()).join(' and ');
 // The Court page: for every land the house rules, who runs what and whether they will, what stands empty and who
@@ -3467,7 +3532,7 @@ function court(W, h) {
   const count = n => (n === 1 ? 'a favour' : `${n} favours`);
   const ledger = o => {
     const mine = owes(W, o, h).length, theirs = owes(W, h, o).length;
-    const good = [mine ? `Owes you ${count(mine)}` : '', ...Object.keys(ASKS).filter(k => pledged(W, o, h, k)).map(k => `${ASKS[k].text} until ${pledged(W, o, h, k).until}`)].filter(Boolean).join(' · ');
+    const good = [mine ? `Owes you ${count(mine)}` : '', ...W.ledger.filter(e => e.k === 'commit' && e.a === o.id && e.b === h.id).map(e => `${ASKS[e.what]?.text ?? 'pays you tribute'} until ${e.until}`)].filter(Boolean).join(' · ');
     return (good ? `<small class="doing">${good[0].toUpperCase()}${good.slice(1)}</small>` : '') + (theirs ? `<small class="bad">You owe it ${count(theirs)}</small>` : '');
   };
   const peers = locals(W, W.regions[h.seat]).filter(o => o !== h), all = k => W.ledger.filter(e => e.k === 'favour' && e[k] === h.id && !house(W, e.a).dead && !house(W, e.b).dead).length;
