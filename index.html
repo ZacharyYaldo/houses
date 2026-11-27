@@ -453,7 +453,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 9:20 AM ET · e8899bb';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 9:32 AM ET · 90d8de7';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -561,10 +561,10 @@ const CFG = {
 
 // One-line explanations shown when the player hovers over, or presses, a labelled field. Keyed by the label on screen.
 const TIPS = {
-  [LABEL.folk]: `The ordinary people. Each group follows one house, pays its taxes and fills its armies. In a table this is the share of a land's ${LABEL.folk} who follow each house.`,
-  'Wealth a head': 'How rich each person is. The number is how many times the average land of year 0, which was 1×. It grows with knowledge, roads and trade, and falls with heavy taxes and war. Taxes are a cut of it.',
-  'Can read': 'Share of the people who can read. Readers speed up knowledge, and a well-read land that revolts becomes a republic.',
-  'Knowledge: like real year': 'The year of real history this land has caught up with. It sets which discoveries it has, how long its people live and how strong its armies are.',
+  [LABEL.folk]: 'The ordinary people. Each follows one house, pays its taxes and fills its armies. In a table: the share who follow each house.',
+  'Wealth a head': 'How rich people here are next to the world average today, which is 1×. Taxes are a cut of it.',
+  'Can read': 'The share of people who can read. Readers speed up knowledge.',
+  'Knowledge: like real year': 'The year of real history this land has caught up with.',
   'Its knowledge: like real year': 'The year of real history your home land has caught up with. Fund scholars and build schools to push it on.',
   Knowledge: 'The score of your world\'s most advanced land: the year of real history it has caught up with. The small number is how far ahead (+) or behind (−) the real world it is.',
   You: 'The house you lead. Tap to open it.',
@@ -635,8 +635,9 @@ const ASKS = {
 // What a great feast can be held for.
 const FEASTS = { folk: 'For your people', heir: 'To present your heir', house: 'To honour' };
 
-// What a land's wealth a head is called: the first band its wealth, in times the average of year 0, is under.
-const WEALTH = [[.8, 'Poor'], [1.2, 'Modest'], [2, 'Well off'], [5, 'Thriving'], [12, 'Rich'], [Infinity, 'Opulent']];
+// What a land's wealth a head is called: the first band its wealth, in times the world's average that year, is under.
+// The edges sit where the figure shown beside the word rounds over, so 1.0x is always Average and 0.9x always Modest.
+const WEALTH = [[.75, 'Poor'], [.95, 'Modest'], [1.05, 'Average'], [1.35, 'Well off'], [1.95, 'Rich'], [Infinity, 'Opulent']];
 
 // What a house runs for the ruler of its land. `by` is what one working holding adds to `gives`.
 const HOLDINGS = {
@@ -3619,6 +3620,7 @@ function moves(W, kind, t, heading) {
 /* ---------- sheets ---------- */
 function region(W, i, picking) {
   const r = W.regions[i], lord = house(W, r.ruler), war = W.wars.find(w => w.r === i);
+  const rich = r.wealth / (sum(W.regions, x => x.wealth * x.pop) / sum(W.regions, x => x.pop));   // against the average person in the world today
   const row = o => `<tr class="${o === me(W) ? 'me' : ''}">
     <td>${ref(o)}${o === lord ? ` <b class="tag"${hint('Rules')}>Rules</b>` : ''}<small>${lead(o)}${r.shares[o.id]?.runs ? `. Runs the ${running(r, o)}${balks(W, r, o) ? ', but withholds' : ''}` : ''}</small></td>
     <td>${pct((r.shares[o.id]?.s ?? 0))}</td><td>${Math.round((r.shares[o.id]?.loy ?? 0))}%</td><td>${taxName(o.tax)}</td>
@@ -3631,7 +3633,7 @@ function region(W, i, picking) {
     </div></section>`;
   return boxes(
     box(LABEL.folk, people(r.pop)),
-    box('Wealth', `${WEALTH.find(([under]) => r.wealth < under)[1]} <span>(${r.wealth.toFixed(1)}×)</span>`, '', 'Wealth a head'),
+    box('Wealth', `${WEALTH.find(([under]) => rich < under)[1]} <span>(${rich.toFixed(1)}×)</span>`, '', 'Wealth a head'),
     box('Can read', pct(r.lit)),
     box('Knowledge', realYear(r.know), '', 'Knowledge: like real year'),
   ) + `<p class="state">${r.republic ? 'A republic, led' : 'Ruled'} by ${ref(lord)} since ${r.since}.
