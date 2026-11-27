@@ -140,6 +140,7 @@ section p,.state { color:var(--dim); font-size:13px; line-height:1.55; }
 .tabs button { flex:1; min-width:0; min-height:40px; padding:6px 4px; background:none; border:0; font-size:12px; font-weight:650; display:flex; align-items:center; justify-content:center; gap:6px; }
 .tabs button.on { background:var(--raised); color:var(--gold); box-shadow:0 1px 5px #0003; }
 .tabs .glyph { width:17px; height:17px; }
+.realm-tabs button { flex:1 1 auto; } .realm-tabs button:not(.on) .glyph { display:none; }   /* five tabs: only the open one shows its icon */
 .section-heading { display:flex; align-items:center; gap:10px; }
 .section-heading>div { flex:1; }
 .section-heading h2 { font-size:24px; margin-top:4px; }
@@ -453,7 +454,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 9:56 AM ET · d1eadeb';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 11:07 AM ET · def7959';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -527,6 +528,10 @@ const CFG = {
   // The ledger. warm: the opinion at which a house agrees to an ask without owing you; keep: years a favour is remembered;
   // call: yearly chance a house collects a favour you owe, no sooner than gap years after the last; snub: what refusing costs with every house of your seat.
   ledger: { warm: 20, keep: 40, call: .08, gap: 8, snub: 10, honour: 20, most: 3 },   // most: favours a house can owe at once before no one takes its word
+  // The seat. steward/kin/able: how long a project takes under a steward, or a relative of ability a (kin - able x a), against
+  // a house's 1; grows: the following an overseeing house gains; lost: years lost when an overseer is gone; then what each
+  // specialisation gives.
+  seat: { steward: 1.25, kin: 1.2, able: .04, grows: .03, lost: 2, mart: .2, fort: .25, crown: 5, lore: .2 },
   music: { volume: .45, fade: 5 },                          // fade: seconds before a track's end that the next one starts
   // A realm stretched thin: every land ruled beyond `free` costs `per` loyalty, and every border between a land and the
   // seat beyond the first costs `far`, in the lands ruled away from the seat, up to `cap`. A land under that strain also rises
@@ -644,6 +649,17 @@ const TRACKS = ['audio/kingdoms-dawn.mp3', 'audio/the-final-empire.mp3'];
 // The edges sit where the figure shown beside the word rounds over, so 1.0x is always Average and 0.9x always Modest.
 const WEALTH = [[.75, 'Poor'], [.95, 'Modest'], [1.05, 'Average'], [1.35, 'Well off'], [1.95, 'Rich'], [Infinity, 'Opulent']];
 
+// Projects for a house's seat, one at a time (sim/seat.js). An entry with neither `of` nor `when` is a specialisation:
+// what the seat is. One with `of` is an institution of that specialisation, built after `after` if given. One with
+// `when(W, h)` is an opportunity, open only while that holds. years: under a house's oversight; cost: in price units;
+// text: what it changes, which the code that changes it reads from CFG.seat.
+const PROJECTS = {
+  mart: { name: 'Merchant city', years: 8, cost: 6, text: `Trade income +${CFG.seat.mart * 100}%` },
+  fort: { name: 'Fortress city', years: 8, cost: 6, text: `Soldiers from your seat +${CFG.seat.fort * 100}%` },
+  crown: { name: 'Seat of government', years: 8, cost: 6, text: `Loyalty +${CFG.seat.crown} in every land you rule` },
+  lore: { name: 'Seat of learning', years: 8, cost: 6, text: `Knowledge gained in your seat +${CFG.seat.lore * 100}%` },
+};
+
 // What a house runs for the ruler of its land. `by` is what one working holding adds to `gives`.
 const HOLDINGS = {
   farms: { name: 'Granaries', by: .06, gives: 'room for people' },
@@ -670,6 +686,10 @@ const GUIDE = {
     ['Your bloodline', 'Your head leads until they die, then the heir takes over. Name the child you want as heir.'],
     ['Marriages and jobs', 'Marry a grown child into another house to make it an ally. Give a grown child or relative a job, or pay a tutor to raise a child\'s ability.'],
     ['Relatives', 'Relatives at court each want something. Pass one over for years and they leave with followers, and they have a say in who follows you.'],
+  ],
+  seat: [
+    ['Your seat', 'Your seat can become one thing: a merchant city, a fortress, a seat of government or a seat of learning. Each opens its own institutions.'],
+    ['Projects', 'One project at a time, paid up front. You choose who oversees it: a local house, a relative, or your steward.'],
   ],
   goys: [
     [`Your ${LABEL.folk}`, `Your income is the tax your ${LABEL.folk} pay. Raise it and you earn more now, but they grow less loyal and may leave you or revolt.`],
@@ -702,8 +722,8 @@ const GUIDE = {
 const UI = {
   nav: { map: 'Map', family: 'Family', realm: 'Realm', power: 'Power', world: 'World' },
   worldTabs: { standing: 'Houses', ours: 'History', annals: 'Chronicle' },
-  groupIcons: { family: 'family', goys: 'people', trade: 'trade', power: 'power', know: 'book', court: 'crown' },
-  subtitles: { family: 'The people behind your house', goys: 'Your people. Your responsibility.', trade: 'Prosper through connection', power: 'The strength behind your name', know: 'Knowledge shapes what comes next', court: 'Who serves you, and what it costs to lose them' },
+  groupIcons: { family: 'family', goys: 'people', trade: 'trade', power: 'power', know: 'book', court: 'crown', seat: 'seat' },
+  subtitles: { family: 'The people behind your house', goys: 'Your people. Your responsibility.', trade: 'Prosper through connection', power: 'The strength behind your name', know: 'Knowledge shapes what comes next', court: 'Who serves you, and what it costs to lose them', seat: 'What your seat is, and what it is becoming' },
   paused: 'Time paused', back: 'Back', close: 'Close', resume: 'Resume on map', play: 'Play', pause: 'Pause',
   home: 'My lands', mapHint: 'Drag to explore · Pinch to zoom', chronicle: 'Open chronicle', noEvents: 'Your history begins here.',
   noHeir: 'No heir', heirWarning: 'Without an heir, a relative or a cousin takes over and you lose prestige.',
@@ -738,7 +758,7 @@ Object.assign(TIPS, {
   'Time paused': 'Management panels and decisions stop the clock. Return to the map and press Play to continue.',
 });
 
-return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, JOBS, WANTS, ASKS, FEASTS, TRACKS, WEALTH, HOLDINGS, GUIDE, UI };
+return { BUILD, LABEL, START, END, ERA, MAP, TRAITS, TAXES, FUNDS, AIMS, WORKS, UNLOCKS, RULES, CFG, TIPS, JOBS, WANTS, ASKS, FEASTS, TRACKS, WEALTH, PROJECTS, HOLDINGS, GUIDE, UI };
 })();
 __m['js/data/regions.js'] = (() => {
 // The lands of year 0. pop: millions of people. know: the year of our history its knowledge matches.
@@ -1055,6 +1075,8 @@ function job(W, h, k) {
   const who = holder(W, h, k), seat = W.regions[h.seat];
   return (!who ? 0 : !who.head ? who.a : seat.ruler === h.id && seat.shares[who.id] && !balks(W, seat, who) ? who.head.a * CFG.kin.house : 0) * JOBS[k].by;
 }
+// Whether house h rules its seat and project k (see PROJECTS) stands there. Every effect of a project asks this.
+const seatHas = (W, h, k) => W.regions[h.seat].ruler === h.id && !!W.regions[h.seat].built?.includes(k);
 // The loyalty a ruler loses in land r for ruling many lands far from home, or would with `more` lands. The seat never feels it.
 const strain = (W, h, r, more = 0) => (r.i === h.seat ? 0 : Math.min(CFG.stretch.cap, CFG.stretch.per * Math.max(0, h.thrones + more - CFG.stretch.free) + CFG.stretch.far * Math.max(0, GEO.hops[h.seat][r.i] - 1)));
 const boon = (W, r, k) => held(W, r, k) * HOLDINGS[k].by;   // what holdings of kind k add in land r, all told
@@ -1257,7 +1279,7 @@ function refresh(W) {
   }
   for (const r of W.regions) {
     seat(r);
-    const guard = 1 + boon(W, r, 'guard');
+    const guard = (1 + boon(W, r, 'guard')) * (r.i === W.houses[r.ruler].seat && r.built?.includes('fort') ? 1 + CFG.seat.fort : 1);   // the ruler's own soldiers here
     const ids = Object.keys(r.shares), tax = sum(ids, id => r.shares[id].s * W.houses[id].tax);
     r.wealth = curve(OURS.wealth, r.know) * (1 + .05 * r.works.roads) * (1 - r.waste * .6) * (1.16 - tax * .8) * (1 + .02 * Math.min(5, W.trade[r.i].length)) * (1 + boon(W, r, 'market'));
     for (const id of ids) {
@@ -1271,7 +1293,7 @@ function refresh(W) {
     lord.levy += CFG.court.muster * sum(ids, id => (+id === r.ruler || balks(W, r, W.houses[id]) ? 0 : r.pop * r.shares[id].s * r.shares[id].loy / 100 * CFG.army * mil(r.know)));
   }
   for (const h of hs) {
-    const trade = sum(pactsOf(W, h), o => (atWar(W, h, o) ? 0 : CFG.trade * Math.sqrt(h.base * o.base))) * (is(h, 'Merchant') ? 1.4 : 1);
+    const trade = sum(pactsOf(W, h), o => (atWar(W, h, o) ? 0 : CFG.trade * Math.sqrt(h.base * o.base))) * (is(h, 'Merchant') ? 1.4 : 1) * (seatHas(W, h, 'mart') ? 1 + CFG.seat.mart : 1);
     h.trade = trade;
     h.inc = (h.base * h.tax + h.crown + trade) * ability(h) * (is(h, 'Wastrel') ? .75 : 1) * (1 - CFG.fundCost * h.fund - CFG.kin.stipend * h.kin.filter(x => x.paid).length);
     h.levy *= ability(h) * (is(h, 'Warlike') ? 1.3 : 1) * (1 + job(W, h, 'commander'));
@@ -1284,7 +1306,7 @@ function refresh(W) {
   }
 }
 
-return { house, alive, ruled, holds, locals, is, ability, household, relative, base, mil, tied, pactsOf, atWar, opinion, sway, grudge, owes, bound, pledged, balks, held, holder, job, strain, boon, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, net, warBill, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
+return { house, alive, ruled, holds, locals, is, ability, household, relative, base, mil, tied, pactsOf, atWar, opinion, sway, grudge, owes, bound, pledged, balks, held, holder, job, seatHas, strain, boon, techYear, knows, fundCap, workCap, routeParts, routeCap, unit, allyAid, fronts, force, strength, net, warBill, fullName, linked, reach, contacts, note, deed, addShare, moveShare, setRuler, dropShare, newPerson, enthrone, newHouse, bury, migrate, createWorld, takeHouse, foundHouse, refresh };
 })();
 __m['js/sim/family.js'] = (() => {
 // Bloodlines: births, deaths, heirs, marriages, and branches that break away.
@@ -1333,7 +1355,7 @@ function stepFamily(W, h) {
 }
 
 // How a relative stands with the head, and whether they have what they want.
-const served = x => x.job === x.want || (x.want === 'holding' && !!x.runs) || (x.want === 'gold' && !!x.paid);
+const served = x => x.job === x.want || (x.want === 'holding' && !!(x.runs || x.task)) || (x.want === 'gold' && !!x.paid);   // task: a project they oversee
 const temper = x => (x.loy < CFG.kin.bitter ? 'Bitter' : x.loy < CFG.kin.restless ? 'Restless' : 'Content');
 // The share of the seat's following a relative of ability a would take if they left.
 const takes = a => CFG.kin.takes + CFG.kin.per * a;
@@ -1348,7 +1370,7 @@ function stepCourt(W, h) {
   for (const x of [...h.kin]) {
     if (x.runs && W.regions[x.runs.r].ruler !== h.id) delete x.runs;
     const was = temper(x);
-    x.loy = clamp(x.loy + (served(x) ? CFG.kin.up : x.job || x.runs || x.paid ? CFG.kin.some : -CFG.kin.down), 0, 100);
+    x.loy = clamp(x.loy + (served(x) ? CFG.kin.up : x.job || x.runs || x.paid || x.task ? CFG.kin.some : -CFG.kin.down), 0, 100);
     if (temper(x) === 'Bitter' && was !== 'Bitter') W.cards.push({ type: 'news', title: 'A bitter relative', txt: `${x.n} wants ${WANTS[x.want].text} and has had nothing from you. Give them that, another post, a holding or a stipend, or they may leave and take ${pct(takes(x.a))} of your following in ${named(seat.i)} with them.` });
     else if (x.loy < CFG.kin.bitter && seat.shares[h.id] && chance(W, CFG.kin.leave)) leave(W, h, x, seat);
   }
@@ -1611,13 +1633,77 @@ function boonText(k, n = 1) {
 
 return { vacate, fill, grieve, grievances, owe, drop, terms, promise, pledge, forget, boonText };
 })();
+__m['js/sim/seat.js'] = (() => {
+// Development of a house's seat: one project at a time, each overseen by someone. A finished project is a key of
+// PROJECTS in r.built. The one under way is r.job = { k, y, done, by }, where `by` is the id of the house overseeing it,
+// the name of the relative, or null for the ruler's own steward.
+const { CFG, PROJECTS } = __m['js/config.js'];
+const { named } = __m['js/data/regions.js'];
+const { locals, balks, note, addShare } = __m['js/sim/state.js'];
+const { owe } = __m['js/sim/court.js'];
+
+const kind = k => (PROJECTS[k].of ? 'institution' : PROJECTS[k].when ? 'opportunity' : 'specialisation');
+const spec = r => (r.built ?? []).find(k => kind(k) === 'specialisation');   // what the seat is, if anything yet
+// The projects house h could begin in its seat: a specialisation other than its own, the institutions of its own whose
+// forerunner stands, and the opportunities its history has opened.
+function open(W, h) {
+  const r = W.regions[h.seat], built = r.built ?? [], mine = spec(r);
+  return Object.keys(PROJECTS).filter(k => !built.includes(k) && { specialisation: () => true, institution: () => PROJECTS[k].of === mine && built.includes(PROJECTS[k].after ?? mine), opportunity: () => PROJECTS[k].when(W, h) }[kind(k)]());
+}
+// What a new specialisation would sweep away: the old one and its institutions. Opportunities stay.
+const swept = (r, k) => (kind(k) === 'specialisation' ? (r.built ?? []).filter(x => kind(x) !== 'opportunity') : []);
+// Who could oversee a project in house h's seat: its houses that will work with the ruler, grown relatives with no such
+// task already, and the steward (null).
+function overseers(W, h) {
+  const r = W.regions[h.seat];
+  return [...locals(W, r).filter(o => o !== h && !balks(W, r, o)), ...h.kin.filter(x => W.year - x.b >= CFG.adult && !x.task), null];
+}
+// The years project k takes: as listed under a house, longer under a steward, and by ability under a relative.
+const span = (k, by) => Math.round(PROJECTS[k].years * (!by ? CFG.seat.steward : by.head ? 1 : CFG.seat.kin - CFG.seat.able * by.a));
+// Whoever oversees the project under way in land r: a house, a relative, or undefined (the steward, or someone now gone).
+function overseer(W, r) {
+  const by = r.job?.by, lord = W.houses[r.ruler];
+  return typeof by === 'number' ? (r.shares[by] ? W.houses[by] : undefined) : lord.kin.find(x => x.n === by);
+}
+// House h begins project k in its seat under its steward. entrust() hands it to someone else.
+function begin(W, h, k) {
+  W.regions[h.seat].job = { k, y: W.year, done: W.year + span(k, null), by: null };
+}
+function entrust(W, h, by) {
+  const job = W.regions[h.seat].job;
+  if (!by) return;
+  job.by = by.head ? by.id : by.n; job.done = job.y + span(job.k, by);
+  if (!by.head) by.task = job.k;
+}
+// The project under way in land r, once a year: it loses time when its overseer is gone or will not work for the ruler,
+// and when its day comes it is finished.
+function stepSeat(W, r) {
+  if (!r.job) return;
+  const who = overseer(W, r);
+  if (r.job.by !== null && !who) { r.job.by = null; r.job.done += CFG.seat.lost; }   // the steward picks it up
+  else if (who?.head && balks(W, r, who)) r.job.done++;
+  if (W.year >= r.job.done) finish(W, r);
+}
+function finish(W, r) {
+  const { k } = r.job, p = PROJECTS[k], lord = W.houses[r.ruler], who = overseer(W, r), gone = swept(r, k);
+  r.built = [...(r.built ?? []).filter(x => !gone.includes(x)), k];
+  delete r.job;
+  if (who?.head) { owe(W, who, lord, `Given the building of the ${p.name.toLowerCase()}`); addShare(r, who.id, CFG.seat.grows); }
+  else if (who) delete who.task;
+  note(W, `The ${p.name.toLowerCase()} of ${named(r.i)} is finished under House ${lord.name}.`, { r: r.i, h: lord.id, w: 1 });
+  if (lord.id === W.player) W.cards.push({ type: 'news', title: `${p.name}: finished`, txt: `${p.text}.${who?.head ? ` House ${who.name}, which oversaw the work, owes you a favour.` : ''}${gone.length ? ` Gone with the old order: ${gone.map(x => PROJECTS[x].name.toLowerCase()).join(', ')}.` : ''}` });
+}
+
+return { kind, spec, open, swept, overseers, span, overseer, begin, entrust, stepSeat };
+})();
 __m['js/sim/realm.js'] = (() => {
 // One year in one land: knowledge, people, loyalty, and the unrest that follows from them.
 const { CFG, LABEL } = __m['js/config.js'];
 const { REGIONS, named } = __m['js/data/regions.js'];
 const { OURS, TECHS } = __m['js/data/history.js'];
 const { chance, range, clamp, lerp, curve, sum, maxBy } = __m['js/sim/util.js'];
-const { locals, linked, is, ability, note, newHouse, addShare, moveShare, dropShare, setRuler, job, boon, strain, opinion, bound } = __m['js/sim/state.js'];
+const { locals, linked, is, ability, note, newHouse, addShare, moveShare, dropShare, setRuler, job, boon, strain, opinion, bound, seatHas } = __m['js/sim/state.js'];
+const { stepSeat } = __m['js/sim/seat.js'];
 const { fill } = __m['js/sim/court.js'];
 
 const K = CFG.know;
@@ -1629,6 +1715,7 @@ function stepRegion(W, r) {
   const room = R.pop * curve(OURS.pop, Math.max(0, r.know)) / curve(OURS.pop, 0) * lerp(1, R.room, clamp((r.know - 1500) / 527, 0, 1)) * (1 + .03 * r.works.farms) * (1 + boon(W, r, 'farms'));
   r.pop = Math.max(.02, r.pop + r.pop * CFG.growth * (1 - r.pop / room) * (aim === 'growth' ? 1.3 : 1));
   r.waste *= .93;
+  stepSeat(W, r);
   // Other rulers fill an empty holding within the year, with the local house that likes them best or else a steward.
   if (r.vacant.length && r.ruler !== W.player) fill(W, r, 0, maxBy(locals(W, r).filter(o => o.id !== r.ruler), o => opinion(o, W.houses[r.ruler])) ?? null);
   tend(W, r);
@@ -1640,6 +1727,7 @@ function learn(W, r, R, aim) {
   const fund = sum(locals(W, r), h => r.shares[h.id].s * (h.fund + job(W, h, 'scholar')) * ability(h) * (is(h, 'Scholar') ? 1.5 : 1));
   let gain = (K.base + K.school * r.works.schools + K.fund * fund + K.lit * r.lit) * (1 - r.waste) * (aim === 'science' ? 1.15 : aim === 'slow' ? .8 : 1) * (W.rules.genius ? 2.5 : 1) * (1 + boon(W, r, 'scribe'));
   for (const j of new Set([...linked(W, r.i), ...W.trade[r.i]])) gain += clamp((W.regions[j].know - r.know) * K.spread * (W.trade[r.i].includes(j) ? 2 : 1), 0, K.spreadMax);
+  if (r.built?.includes('lore')) gain *= 1 + CFG.seat.lore;   // a seat of learning: on everything it learns, borrowed knowledge too
   const was = r.know;
   r.gain = gain;                                           // knowledge-years gained this year, shown to the player
   r.know = Math.min(K.cap, was + gain);
@@ -1656,7 +1744,7 @@ function learn(W, r, R, aim) {
 function mood(W, r, h) {
   const sh = r.shares[h.id], rules = r.ruler === h.id;
   return [['Starting point', 62], ['A just head', is(h, 'Just') ? 10 : 0], ['Your tax', -(h.tax - .2) * 150], ['Size of your following', -sh.s * CFG.sizeDrag],
-    ['Feasts, building and events', sh.favor], ['War damage', -r.waste * 40], ['Plague', r.plague ? -8 : 0], ['You rule here', rules ? 4 : 0], ['Your governor', rules ? job(W, h, 'governor') : 0], ['Shrines', rules ? boon(W, r, 'shrine') : 0], ['A realm stretched thin', rules ? -strain(W, h, r) : 0], ['War weariness', -(h.weary ?? 0)]];
+    ['Feasts, building and events', sh.favor], ['War damage', -r.waste * 40], ['Plague', r.plague ? -8 : 0], ['You rule here', rules ? 4 : 0], ['Your governor', rules ? job(W, h, 'governor') : 0], ['Shrines', rules ? boon(W, r, 'shrine') : 0], ['A realm stretched thin', rules ? -strain(W, h, r) : 0], ['War weariness', -(h.weary ?? 0)], ['Your seat of government', rules && seatHas(W, h, 'crown') ? CFG.seat.crown : 0]];
 }
 
 // Followers judge their house every year, and drift toward the best-loved house in the land.
@@ -1924,7 +2012,7 @@ __m['js/sim/actions.js'] = (() => {
 // note() is an optional line of detail shown beside a target: what the player needs to know to decide.
 // reach() says why a house or land is not among the targets at all, so its own page can explain itself.
 // verb is the word on the button. said() gives the message shown after a routine action, when a log line would not do. bulk marks an action the player may run on every target at once. big marks one whose outcome gets a result card.
-const { CFG, JOBS, HOLDINGS, ASKS, FEASTS, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
+const { CFG, JOBS, HOLDINGS, ASKS, FEASTS, PROJECTS, LABEL, TAXES, FUNDS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { rnd, chance, sum, gold, people, pct } = __m['js/sim/util.js'];
 const { house, alive, holds, ruled, locals, balks, household, holder, job, grudge, strain, linked, reach, contacts, base, is, tied, atWar, opinion, sway, pactsOf, note, deed, addShare, allyAid, knows, workCap, routeCap, unit, fundCap, fronts, strength } = __m['js/sim/state.js'];
@@ -1932,6 +2020,7 @@ const { grown, adults, unwed, wed } = __m['js/sim/family.js'];
 const { coup, purge, routOdds, startWar, assault } = __m['js/sim/conflict.js'];
 const { fill, owe, drop, grieve, terms, promise, pledge } = __m['js/sim/court.js'];
 const { loans, owed, atTerm, offer, ask, lend, repay, record } = __m['js/sim/loans.js'];
+const { open, swept, overseers, begin } = __m['js/sim/seat.js'];
 
 const land = r => named(r.i);
 const rivals = (W, h) => alive(W).filter(o => o !== h && holds(W, h).some(r => r.shares[o.id]));
@@ -2141,6 +2230,15 @@ const ACTIONS = {
     reach: (W, h) => (h.thrones ? 'It has no following in a land you rule.' : 'Only a house that rules a land can drive another out.'),
     why: (W, h, t) => (tied(W, h, t) ? 'You are joined to it by marriage' : atWar(W, h, t) ? 'You are already at war with it' : ''),
     run: (W, h, t) => purge(W, h, t),
+  },
+  project: {
+    group: 'seat', kind: 'deal', label: 'Begin a project', verb: 'Begin', hint: 'One project at a time in your seat, paid for when it begins. You then choose who oversees it.',
+    targets: (W, h) => open(W, h).map(k => ({ k })), key: (h, t) => t.k, read: (W, h, k) => ({ k }),
+    cost: (W, h, t) => unit(h) * PROJECTS[t.k].cost,
+    why: (W, h) => { const r = seatOf(W, h); return r.ruler !== h.id ? 'Only the ruler of a land can remake it' : r.job ? `The ${PROJECTS[r.job.k].name.toLowerCase()} is under way until ${r.job.done}` : ''; },
+    swap: (W, h, t) => { const gone = swept(seatOf(W, h), t.k); return gone.length ? `This sweeps away what your seat is now: ${gone.map(k => PROJECTS[k].name.toLowerCase()).join(', ')}. Tap again to begin.` : ''; },
+    said: (W, h, t) => `Work begins on the ${PROJECTS[t.k].name.toLowerCase()}. ${seatOf(W, h).job.by === null && overseers(W, h).length < 2 ? `Your steward will have it done in ${seatOf(W, h).job.done}.` : ''}`,
+    run(W, h, t) { begin(W, h, t.k); if (overseers(W, h).length > 1) W.cards.push({ type: 'oversee' }); },
   },
   grant: {
     group: 'court', kind: 'deal', label: 'Fill an empty holding', verb: 'Give', hint: 'Give it to a house of that land, which will thank you for it, to a relative, who runs it by their ability, or to a steward of your own, who does it half as well.',
@@ -2775,7 +2873,7 @@ return { stepYear, tellThrones };
 __m['js/sim/cards.js'] = (() => {
 // Decisions that interrupt the player. Each type builds { title, text, who, opts: [{ label, hint, bar, run }] } from saved
 // card data, or returns null once the moment has passed. who names the house the card is about, so its stats can be shown.
-const { CFG, GUIDE, LABEL, TAXES, JOBS, ASKS } = __m['js/config.js'];
+const { CFG, GUIDE, LABEL, TAXES, JOBS, ASKS, PROJECTS, WANTS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { NATURE } = __m['js/data/history.js'];
 const { gold, pct } = __m['js/sim/util.js'];
@@ -2783,6 +2881,7 @@ const { house, holds, ruled, alive, locals, tied, opinion, sway, note, fullName,
 const { drop, grieve, pledge, owe } = __m['js/sim/court.js'];
 const { loans, owed, repay, extend, collect, threat, ask, lend, fail, seize, record } = __m['js/sim/loans.js'];
 const { heirOf, depart } = __m['js/sim/family.js'];
+const { overseers, span, entrust } = __m['js/sim/seat.js'];
 const { GOALS, goalReward } = __m['js/sim/goals.js'];
 const { ACTIONS, barred } = __m['js/sim/actions.js'];
 const { startWar } = __m['js/sim/conflict.js'];
@@ -2869,6 +2968,20 @@ const CARDS = {
         { label: `Ask for ${CFG.loan.more} more years`, bar: e.more || cold, hint: e.more ? 'It has already waited once' : cold ? 'It thinks too little of you to wait' : `Interest runs on at ${pct(e.rate + CFG.loan.dearer)} a year`, run() { extend(W, e); } },
         { label: 'Default', hint: `${threat(W, e)}. Every house will see the default for ${CFG.loan.memory} years`, run() { collect(W, e); } },
       ],
+    };
+  },
+  // A project has just begun in the player's seat: who is to oversee it?
+  oversee(W) {
+    const h = me(W), job = W.regions[h.seat].job;
+    if (!job || job.by !== null || job.y !== W.year) return null;
+    const p = PROJECTS[job.k], done = by => job.y + span(job.k, by);
+    return {
+      title: `Who oversees the ${p.name.toLowerCase()}?`, text: `${p.text}. Whoever you name sees the work through.`,
+      opts: overseers(W, h).map(by => ({
+        label: !by ? 'Your steward' : by.head ? `House ${by.name}` : by.n,
+        hint: `Done in ${done(by)}. ${!by ? 'No one gains by it' : by.head ? `It will owe you a favour, and its following here grows by ${CFG.seat.grows * 100}%` : `${by.n} has ability ${by.a} and wants ${WANTS[by.want].text}${by.want === 'holding' ? ', which this is while it lasts' : '; this at least keeps them from souring'}`}`,
+        run() { entrust(W, h, by); },
+      })),
     };
   },
   // Another house asks the player for a loan.
@@ -3360,7 +3473,7 @@ return { icon, crest, portrait, illustration };
 })();
 __m['js/ui/views.js'] = (() => {
 // Every screen as a function from world state to an HTML string. Nothing here changes the world.
-const { JOBS, HOLDINGS, WANTS, ASKS, WEALTH, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
+const { JOBS, HOLDINGS, WANTS, ASKS, WEALTH, PROJECTS, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct, realYear } = __m['js/sim/util.js'];
@@ -3371,11 +3484,12 @@ const { standings, rankOf, compare, AMBITIONS, epithet } = __m['js/sim/score.js'
 const { mood, shaky } = __m['js/sim/realm.js'];
 const { grievances, boonText, terms } = __m['js/sim/court.js'];
 const { loans, owed, atTerm, rateFor, record } = __m['js/sim/loans.js'];
+const { kind, spec, open: openProjects, swept, overseer, span } = __m['js/sim/seat.js'];
 const { GOALS, goalLine } = __m['js/sim/goals.js'];
 const { esc, tint } = __m['js/ui/dom.js'];
 const { icon, crest, portrait, illustration } = __m['js/ui/art.js'];
 
-const GROUPS = { family: 'Family', goys: LABEL.folk, trade: 'Trade', power: 'Power', know: 'Scholars', court: 'Court' };
+const GROUPS = { family: 'Family', goys: LABEL.folk, trade: 'Trade', power: 'Power', know: 'Scholars', court: 'Court', seat: 'Seat' };
 const TABS = UI.worldTabs;
 
 /* ---------- building blocks ---------- */
@@ -3413,7 +3527,7 @@ const speedLabel = ms => Number((CFG.speeds[0] / ms).toFixed(1)) + '×';
 const hero = (W, h) => `<div class="person-hero"><div class="ruler-art">${illustration('court')}${portrait(h)}</div><div class="ruler-bio">${icon('crown')}<h2>${esc(h.head.n)}</h2><p>${trait(h.head.t)} · Age ${W.year - h.head.b}</p><span class="ability"${hint('ability')}>Ability <b>${h.head.a} / 10</b></span><span class="ability-track" aria-hidden="true"><i style="width:${h.head.a * 10}%"></i></span></div></div>`;
 
 const state = (symbol, title, text, tone = '') => `<div class="notice ${tone}">${icon(symbol)}<div><b>${title}</b><p>${text}</p></div></div>`;
-const realmTabs = g => `<nav class="tabs realm-tabs" aria-label="Realm">${rows(['goys', 'trade', 'know', 'court'], k => `<button data-open="group:${k}" class="${g === k ? 'on' : ''}" aria-current="${g === k ? 'page' : 'false'}">${icon(UI.groupIcons[k])}${GROUPS[k]}</button>`)}</nav>`;
+const realmTabs = g => `<nav class="tabs realm-tabs" aria-label="Realm">${rows(['goys', 'trade', 'seat', 'know', 'court'], k => `<button data-open="group:${k}" class="${g === k ? 'on' : ''}" aria-current="${g === k ? 'page' : 'false'}">${icon(UI.groupIcons[k])}${GROUPS[k]}</button>`)}</nav>`;
 
 function hud(W, paused, speed) {
   const h = me(W);
@@ -3437,7 +3551,7 @@ function mine(W) {
 
 function bar(open = '', realm = 'group:goys') {
   const tabs = [['map', null, 'map'], ['family', 'group:family', 'family'], ['realm', realm, 'realm'], ['power', 'group:power', 'power'], ['world', 'world:standing', 'world']];
-  const active = !open ? 'map' : open === 'group:family' ? 'family' : /^group:(goys|trade|know|court)$/.test(open) ? 'realm' : open === 'group:power' ? 'power' : open.startsWith('world:') ? 'world' : '';
+  const active = !open ? 'map' : open === 'group:family' ? 'family' : /^group:(goys|trade|know|court|seat)$/.test(open) ? 'realm' : open === 'group:power' ? 'power' : open.startsWith('world:') ? 'world' : '';
   return rows(tabs, ([k, route, art]) => `<button ${route ? `data-open="${route}" data-root="true"` : 'data-go="close"'} class="${active === k ? 'on' : ''}" aria-current="${active === k ? 'page' : 'false'}">${icon(art)}<span>${UI.nav[k]}</span></button>`);
 }
 
@@ -3558,6 +3672,19 @@ function lending(W, h) {
     + (under.length ? `<section><h3>Subordinate houses</h3><ul class="allies notes">${rows(under, e => `<li>${ref(house(W, e.a), true)}<small>Pays you ${gold(house(W, e.a).inc / (1 - CFG.loan.tribute) * CFG.loan.tribute)} gold a year and sends soldiers to your wars, until ${e.until}.</small></li>`)}</ul></section>` : '')
     + actionSection(W, 'repay', true) + actionSection(W, 'borrow') + actionSection(W, 'lend');
 }
+// The Seat page: what the seat is, the project under way, what could be begun, and what stands there already.
+function seat(W, h) {
+  const r = W.regions[h.seat], mine = spec(r), job = r.job, who = job && overseer(W, r), can = job ? [] : openProjects(W, h);   // nothing else can begin while one is under way
+  if (r.ruler !== h.id) return state('lock', `You do not rule ${REGIONS[r.i].name}`, 'Only the ruler of a land can remake it. Take the throne of your seat first.');
+  const card = (k, more) => `<div class="child post"><b>${PROJECTS[k].name}</b><small>${PROJECTS[k].text}</small>${more}</div>`;
+  const offer = k => card(k, `<small>${PROJECTS[k].years} years under a house, ${span(k, null)} under your steward${swept(r, k).length ? `. Sweeps away: ${swept(r, k).map(x => PROJECTS[x].name.toLowerCase()).join(', ')}` : ''}</small><div class="child-acts">${go(W, 'project', { k })}</div>`);
+  const list = (title, what, fold) => { const ks = can.filter(k => kind(k) === what); return !ks.length ? '' : fold ? `<details class="action-section" data-section="respec"><summary><span>${title}</span><small>${ks.length}</small>${icon('chevron')}</summary><div class="action-body">${rows(ks, offer)}</div></details>` : `<section><h3>${title}</h3>${rows(ks, offer)}</section>`; };
+  return boxes(box('Your seat', REGIONS[r.i].name), box('It is', mine ? PROJECTS[mine].name : 'Nothing yet'))
+    + (job ? `<section><h3>Under way</h3>${card(job.k, `<small class="doing">Finished in ${job.done}, ${job.done - W.year} year${job.done - W.year === 1 ? '' : 's'} from now. Overseen by ${!who ? 'your steward' : who.head ? ref(who, true) : esc(who.n)}.</small>`)}<p class="legend-note">One project at a time. The next can begin when this is finished.</p></section>` : '')
+    + (mine ? '' : list('What your seat could become', 'specialisation')) + list('Institutions', 'institution') + list('Opportunities', 'opportunity')
+    + (r.built?.length ? `<section><h3>What stands here</h3>${rows(r.built, k => card(k, ''))}</section>` : '')
+    + (mine ? list('Become something else', 'specialisation', true) : '');
+}
 const running = (r, o) => r.shares[o.id].runs.map(k => HOLDINGS[k].name.toLowerCase()).join(' and ');
 // The Court page: for every land the house rules, who runs what and whether they will, what stands empty and who
 // could have it; then who holds a grievance. A house that rules nothing sees what it runs for others.
@@ -3628,6 +3755,7 @@ function group(W, g) {
   if (g === 'family') return familyGroup(W, h);
   if (g === 'know') return realmTabs(g) + research(W, h);
   if (g === 'court') return realmTabs(g) + intro + court(W, h);
+  if (g === 'seat') return realmTabs(g) + intro + seat(W, h);
 
   if (g === 'goys') return realmTabs(g) + intro + boxes(box(LABEL.folk, people(followers(W, h))), box('Loyal', `${loyalty(W, h)}%`, `Revolt risk below ${CFG.revoltAt}%`))
     + taxOptions(W) + actionSection(W, 'feast', true)
@@ -3901,7 +4029,7 @@ function navigate(open, root = false) {
     else if (G.open) G.history.push(G.open);
   }
   G.open = open; G.look = null; G.sel = open?.startsWith('region:') ? +open.slice(7) : -1;
-  if (/^group:(goys|trade|know|court)$/.test(open)) G.realm = open;
+  if (/^group:(goys|trade|know|court|seat)$/.test(open)) G.realm = open;
   if (open) G.paused = true;
 }
 
