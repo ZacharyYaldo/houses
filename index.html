@@ -90,7 +90,7 @@ span[data-tip] { text-decoration:underline dotted #73839c; text-underline-offset
 .home-alert { width:100%; min-height:38px; padding:7px 12px; border:0; border-top:1px solid #334257; border-radius:0; background:#f1c54b08; display:flex; align-items:center; gap:7px; text-align:left; font-size:12px; color:var(--gold); }
 .home-alert span { flex:1; }
 .home-alert .glyph { width:16px; height:16px; }
-#bar { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); height:var(--nav); min-height:var(--nav); padding:7px 8px 6px; border-top:1px solid var(--line); background:#0b1729; z-index:3; gap:3px; }
+#bar { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); height:var(--nav); min-height:var(--nav); padding:7px 8px 6px; border-top:1px solid var(--line); background:#0b1729; z-index:3; gap:3px; }
 #bar button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; border:0; border-radius:9px; background:none; padding:4px 0; color:#94a7bf; font-size:10px; font-weight:650; min-width:0; position:relative; }
 #bar .glyph { width:23px; height:23px; }
 #bar button.on { color:var(--gold); background:#f1c54b0d; }
@@ -432,10 +432,9 @@ summary small.bad { color:var(--bad); }
 #top .gold small.losing { color:#ff9c8a; }
 #sheet .scholars-page { padding-top:4px; }
 
-/* To do: the count on the Play button and the tab, and the foot of each case */
+/* To do: the count on the Play button, and the foot of each case */
 .badge { position:absolute; top:-2px; right:-4px; min-width:18px; height:18px; padding:0 4px; display:grid; place-items:center; border-radius:9px; background:#d9534f; color:#fff; font:700 11px/1 system-ui,sans-serif; font-style:normal; }
 #top .play-button { position:relative; }
-#bar .badge { top:0; right:calc(50% - 22px); }
 .todo-foot { display:flex; justify-content:space-between; gap:12px; margin-top:6px; }
 .todo-foot .text-link { font-size:13px; color:#9db2cc; }
 .switch-row { width:100%; min-height:44px; display:flex; align-items:center; gap:10px; padding:6px 10px; margin-top:6px; border:1px solid #687483; border-radius:10px; background:linear-gradient(#1b2a3d,#101c2d); text-align:left; }
@@ -467,7 +466,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 4:11 PM ET · 5a39878';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 4:20 PM ET · 32242af';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -706,9 +705,9 @@ const HOLDINGS = {
 // `start` opens a new game; the other keys are the page that triggers them.
 const GUIDE = {
   todo: [['To do', 'Only what needs a decision is listed here, with its buttons. The number on the Play button counts them. Tap Not now to put one off. When the list is empty, let time run.'],
-    ['Your steward', 'At the foot of the page are switches. Switch one on and your steward does that job every year without asking: filling holdings, giving out jobs, repaying loans, building.']],
+    ['Your steward', 'At the foot of the page are switches. Switch one on and your steward does that chore every year without asking: repaying loans, tutoring your heir, building.']],
   start: [
-    ['Time', 'Press Play to let the years run. Time stops while a page or popup is open and picks up again when you close it. The To do tab lists what needs you.'],
+    ['Time', 'Press Play to let the years run. Time stops while a page or popup is open and picks up again when you close it. The strip above your house on the map says what needs you.'],
     ['The globe', 'Drag to turn it, pinch to zoom. Tap a land to see who holds it. The gold outline is what you rule.'],
     ['Your goal', 'Take thrones by marriage, plot or war, and chase the ambition you chose. Each tab explains itself when you first open it.'],
   ],
@@ -756,7 +755,8 @@ const GUIDE = {
 };
 
 const UI = {
-  nav: { map: 'Map', todo: 'To do', family: 'Family', realm: 'Realm', power: 'Power', world: 'World' },
+  todo: 'To do',
+  nav: { map: 'Map', family: 'Family', realm: 'Realm', power: 'Power', world: 'World' },
   worldTabs: { standing: 'Houses', ours: 'History', annals: 'Chronicle' },
   groupIcons: { family: 'family', goys: 'people', trade: 'trade', power: 'power', know: 'book', court: 'crown', seat: 'seat' },
   subtitles: { family: 'The people behind your house', goys: 'Your people. Your responsibility.', trade: 'Prosper through connection', power: 'The strength behind your name', know: 'Knowledge shapes what comes next', court: 'Who serves you, and what it costs to lose them', seat: 'What your seat is, and what it is becoming' },
@@ -2803,6 +2803,7 @@ __m['js/sim/todo.js'] = (() => {
 // of thing. find() returns its cases: a key (so a case can be put off), a line to read, the best moves and the page that
 // holds the rest. need: true counts toward the number on the play button; the others are only things gold could buy.
 // auto: [name, what he does] marks a kind the steward can take over when its switch is on (W.auto, optional: kind → true).
+// Only chores with no one to choose between are his: who gets a holding, a job or a trade route stays the player's call.
 const { CFG, JOBS, HOLDINGS, WANTS, ASKS, PROJECTS, WORKS } = __m['js/config.js'];
 const { named } = __m['js/data/regions.js'];
 const { gold, pct, sum } = __m['js/sim/util.js'];
@@ -2830,7 +2831,7 @@ const TODO = {
   rise: { need: true, find: (W, h) => ruled(W, h).filter(r => shaky(W, r)).map(r => ({ key: `rise${r.i}`,
     title: `${named(r.i)} may rise against you`, text: `House ${shaky(W, r).name} has the stronger following there. Its promise would hold it back.`,
     moves: asks(W, h, shaky(W, r), ['heir', 'soldiers']).slice(0, 1), open: 'group:court', reveal: `court${r.i}` })) },
-  vacant: { need: true, auto: ['Fill empty holdings', 'Gives each to the strongest house there that will work for you'], find: (W, h) => ruled(W, h).flatMap(r => r.vacant.map((v, n) => {
+  vacant: { need: true, find: (W, h) => ruled(W, h).flatMap(r => r.vacant.map((v, n) => {
     const give = to => move('grant', { r, n, to }, !to ? 'Your steward' : to.head ? `House ${to.name}` : to.n, !to ? 'half as well' : to.head ? 'owes you a favour' : `relative, ability ${to.a}`);
     const houses = locals(W, r).filter(o => o !== h && !balks(W, r, o)).sort((a, b) => r.shares[b.id].s - r.shares[a.id].s).slice(0, CFG.todo.offer);
     const kin = h.kin.filter(x => !x.runs && W.year - x.b >= CFG.adult).sort((a, b) => b.a - a.a).slice(0, 1);
@@ -2843,11 +2844,11 @@ const TODO = {
       text: `Under ${CFG.contest.safe * 100}%, the strongest voice against names its price when ${h.head.n} dies.`,
       moves: locals(W, seat).filter(o => o !== h).sort((a, b) => seat.shares[b.id].s - seat.shares[a.id].s).flatMap(o => asks(W, h, o, ['heir'])).slice(0, CFG.todo.offer), open: 'group:family', reveal: 'stand' }];
   } },
-  kin: { need: true, auto: ['Keep relatives content', 'Gives a restless relative the free job or holding they want, or a stipend'], find: (W, h) => restless(W, h).map(x => ({ key: `kin${x.n}`, title: `${x.n} is ${temper(x).toLowerCase()}`,
+  kin: { need: true, find: (W, h) => restless(W, h).map(x => ({ key: `kin${x.n}`, title: `${x.n} is ${temper(x).toLowerCase()}`,
     text: `Wants ${WANTS[x.want].text}. Leaving, they would take ${pct(takes(x.a))} of your following in ${named(h.seat)}.`,
     moves: [JOBS[x.want] && move(x.want, x, JOBS[x.want].name), ...(x.want === 'holding' ? ruled(W, h).flatMap(r => r.vacant.map((v, n) => move('grant', { r, n, to: x }, `${HOLDINGS[v.k].name} of ${named(r.i)}`))).slice(0, 1) : []),
       !x.paid && move('stipend', x, 'Stipend', `${CFG.kin.stipend * 100}% of income`)].filter(m => m && !barred(W, h, m.id, m.t)), open: 'group:family' })) },
-  idle: { need: true, auto: ['Give out jobs', 'Puts your ablest idle family member in each empty job'], find(W, h) {
+  idle: { need: true, find(W, h) {
     const posts = emptyPosts(W, h), busy = restless(W, h);
     return !posts.length ? [] : adults(W, h).filter(x => !x.job && !busy.includes(x)).sort((a, b) => b.a - a.a).slice(0, posts.length).map(x => ({ key: `idle${x.n}`,
       title: `${x.n} has no job`, text: `Ability ${x.a}. ${posts.length === 1 ? 'One job is' : `${posts.length} jobs are`} empty.`, moves: posts.map(k => move(k, x, JOBS[k].name)), open: 'group:family' }));
@@ -2862,7 +2863,7 @@ const TODO = {
     return !can.length || (r.built?.length && !next.length) ? [] : [{ key: `seat${r.built?.length ?? 0}`, title: 'No project is under way in your seat', text: next.length ? PROJECTS[next[0]].text + '.' : 'Choose what your seat will become.',
       moves: next.slice(0, CFG.todo.offer).map(k => move('project', { k }, PROJECTS[k].name)), open: 'group:seat' }];
   } },
-  route: { auto: ['Open trade routes', 'Opens the richest route whenever one is free'], find(W, h) {
+  route: { find(W, h) {
     const to = pactsOf(W, h).length < routeCap(W, h) ? best(W, h, 'pact', CFG.todo.offer, t => routePay(h, t)) : [];
     return !to.length ? [] : [{ key: 'route', title: 'A trade route is free', text: `${pactsOf(W, h).length} of ${routeCap(W, h)} in use.`,
       moves: to.map(t => move('pact', t, `House ${t.name}`, `${gold(cost(W, h, 'pact', t))} gold · +${gold(routePay(h, t))} a year`)), open: 'group:trade', reveal: 'pact' }];
@@ -2878,11 +2879,12 @@ const TODO = {
   } },
 };
 
-// The list for house h, needs first, without what the player has put off (W.later holds each key and the year it returns).
+// The list for house h, needs first, without what the player has put off (W.later holds each key and the year it returns)
+// or handed to the steward.
 function todo(W, h) {
   if (!h || h.dead) return [];
   const all = Object.entries(TODO).flatMap(([k, e]) => e.find(W, h).map(x => ({ ...x, k, need: !!e.need })));
-  return all.filter(x => !((W.later?.[x.key] ?? 0) > W.year)).sort((a, b) => b.need - a.need);
+  return all.filter(x => !((W.later?.[x.key] ?? 0) > W.year) && (x.need || !(TODO[x.k].auto && W.auto?.[x.k]))).sort((a, b) => b.need - a.need);   // what the steward buys is not offered
 }
 // Put a case off for CFG.todo.later years, and forget the ones whose time has come.
 function later(W, key) {
@@ -3711,7 +3713,7 @@ function hud(W, paused, speed) {
 function mine(W) {
   const h = me(W), heir = heirOf(W, h), list = todo(W, h), needs = list.filter(x => x.need);
   const goal = W.goal ? `<button class="home-goal" data-open="house:${h.id}">${icon('star')}<span><b>Goal: ${GOALS[W.goal.k].name}</b>${esc(goalLine(W))}</span></button>` : '';
-  return `${goal}<button class="home-alert ${needs.length || !heir ? 'warning' : ''}" data-open="${needs.length || heir ? 'todo' : 'group:family'}" data-root="true">${icon(needs.length || !heir ? 'alert' : 'check')}<span>${needs.length ? `To do, ${needs.length}: ${esc(needs[0].title)}` : !heir ? `${UI.noHeir} · View family` : `Nothing needs you${list.length ? `. ${list.length} thing${list.length === 1 ? '' : 's'} you can afford` : ''}`} →</span></button>
+  return `${goal}<button class="home-alert ${needs.length || !heir ? 'warning' : ''}" data-open="todo" data-root="true">${icon(needs.length || !heir ? 'alert' : 'check')}<span>${needs.length ? `To do, ${needs.length}: ${esc(needs[0].title)}` : !heir ? UI.noHeir : `Nothing needs you${list.length ? `. ${list.length} thing${list.length === 1 ? '' : 's'} you can afford` : ''}`} →</span></button>
     <div class="home-card"><button class="home-house" data-open="house:${h.id}">${crest(h)}<span><b>House ${esc(h.name)}</b><i>${esc(h.head.n)} · ${esc(h.head.t)} · Ability ${h.head.a}/10</i></span></button>
     <div class="home-stats">
       <button data-open="group:goys"><b>${people(followers(W, h))}</b><small>${LABEL.folk}</small></button>
@@ -3720,10 +3722,10 @@ function mine(W) {
     </div></div>`;
 }
 
-function bar(open = '', realm = 'group:goys', needs = 0) {
-  const tabs = [['map', null, 'map'], ['todo', 'todo', 'check'], ['family', 'group:family', 'family'], ['realm', realm, 'realm'], ['power', 'group:power', 'power'], ['world', 'world:standing', 'world']];
-  const active = !open ? 'map' : open === 'todo' ? 'todo' : open === 'group:family' ? 'family' : /^group:(goys|trade|know|court|seat)$/.test(open) ? 'realm' : open === 'group:power' ? 'power' : open.startsWith('world:') ? 'world' : '';
-  return rows(tabs, ([k, route, art]) => `<button ${route ? `data-open="${route}" data-root="true"` : 'data-go="close"'} class="${active === k ? 'on' : ''}" aria-current="${active === k ? 'page' : 'false'}">${icon(art)}${k === 'todo' && needs ? `<i class="badge">${needs}</i>` : ''}<span>${UI.nav[k]}</span></button>`);
+function bar(open = '', realm = 'group:goys') {
+  const tabs = [['map', null, 'map'], ['family', 'group:family', 'family'], ['realm', realm, 'realm'], ['power', 'group:power', 'power'], ['world', 'world:standing', 'world']];
+  const active = !open || open === 'todo' ? 'map' : open === 'group:family' ? 'family' : /^group:(goys|trade|know|court|seat)$/.test(open) ? 'realm' : open === 'group:power' ? 'power' : open.startsWith('world:') ? 'world' : '';
+  return rows(tabs, ([k, route, art]) => `<button ${route ? `data-open="${route}" data-root="true"` : 'data-go="close"'} class="${active === k ? 'on' : ''}" aria-current="${active === k ? 'page' : 'false'}">${icon(art)}<span>${UI.nav[k]}</span></button>`);
 }
 
 /* ---------- actions ---------- */
@@ -4056,7 +4058,7 @@ function sheet(W, open, picking, back = false) {
   const [name, body] = kind === 'group' ? [GROUPS[arg], group(W, arg)]
     : kind === 'region' ? [REGIONS[arg].name, region(W, +arg, picking)]
     : kind === 'house' ? [`House ${esc(house(W, arg).name)}`, family(W, +arg)]
-    : kind === 'todo' ? [UI.nav.todo, todoPage(W, me(W))]
+    : kind === 'todo' ? [UI.todo, todoPage(W, me(W))]
     : [UI.nav.world, world(W, arg)];
 
   if (kind === 'group' && arg === 'family') {
@@ -4139,7 +4141,7 @@ const { REGIONS, RID } = __m['js/data/regions.js'];
 const { createWorld, takeHouse, foundHouse, house, household, refresh, migrate } = __m['js/sim/state.js'];
 const { stepYear, tellThrones } = __m['js/sim/step.js'];
 const { ACTIONS, perform, affordable } = __m['js/sim/actions.js'];
-const { todo, later, steward } = __m['js/sim/todo.js'];
+const { later, steward } = __m['js/sim/todo.js'];
 const { nextCard, answer, witness } = __m['js/sim/cards.js'];
 const { createMap } = __m['js/ui/map.js'];
 const { createMusic } = __m['js/ui/music.js'];
@@ -4252,7 +4254,7 @@ function render() {
   $('news').textContent = G.phase === 'pick' ? 'Tap a land to see its houses, then choose one to lead.' : '';
   if (playing) updateInbox(W);
   $('mine').innerHTML = playing && !W.over ? mine(W) : '';
-  $('bar').innerHTML = playing && (!W.over || G.watching) ? bar(G.open ?? '', G.realm, W.over ? 0 : todo(W, house(W, W.player)).filter(x => x.need).length) : '';
+  $('bar').innerHTML = playing && (!W.over || G.watching) ? bar(G.open ?? '', G.realm) : '';
   $('sheet').innerHTML = G.open ? sheet(W, G.open, G.phase === 'pick', !!G.history.length) : ''; $('sheet').hidden = !G.open;
   $('app').classList.toggle('panel-open', !!G.open); $('app').classList.toggle('picking', G.phase === 'pick');
   $('app').classList.toggle('on-title', G.phase === 'title' || G.phase === 'ambition');
