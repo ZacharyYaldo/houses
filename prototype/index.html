@@ -9,120 +9,77 @@
 <body>
 <x-dc>
 <helmet>
-<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&display=swap" rel="stylesheet">
 <style>
-body{margin:0}
-a{color:#f5efde}a:hover{color:#f1c54b}
-button{font:inherit;color:inherit;cursor:pointer;text-align:left}
-button:disabled{cursor:default}
-button:focus-visible{outline:2px solid #f1c54b;outline-offset:2px}
+*{box-sizing:border-box}
+:root{color-scheme:dark}
+body{margin:0;background:#070e15;font:15px/1.38 system-ui,-apple-system,sans-serif;color:#f5eedf}
+button,summary{font:inherit;color:inherit;cursor:pointer}button{text-align:left;border:0;background:none}button:disabled{opacity:.5;cursor:default}button:focus-visible,summary:focus-visible{outline:2px solid #ffda82;outline-offset:-3px}
+.app{width:390px;height:844px;max-width:100%;position:relative;isolation:isolate;display:flex;flex-direction:column;background:#0c1924;overflow:hidden;--gold:#efc46a;--line:#39434a;--muted:#bbc6c9}
+h1,h2,h3,p{margin:0}h1,h2,.house-name,.year{font-family:Georgia,'Times New Roman',serif}
+.hud{background:#0b1620;display:flex;align-items:center;min-height:50px;border-bottom:1px solid #8c734b;padding:0 14px;gap:12px}.hud button{min-height:44px}.year{font-weight:bold;font-size:17px;white-space:nowrap}.money{display:flex;align-items:center;gap:6px;color:var(--gold);font-variant-numeric:tabular-nums}.money strong{font-size:20px}.money small{color:var(--muted)}.coin{width:13px;height:13px;border-radius:50%;background:#d7a13f;border:2px double #ffdf8e;box-shadow:1px 2px #976c27}.clock{margin-left:auto;color:#d0b88a;white-space:nowrap}
+.page{overflow:auto;min-height:0;flex:1;overscroll-behavior:contain;scrollbar-width:thin}.hero{min-height:105px;padding:18px 18px 13px;display:flex;flex-direction:column;justify-content:flex-end;background:linear-gradient(90deg,#0b1826 2%,#0b1826e8 30%,#0b182622 75%),url(art/court.webp) right 52%/auto 130% no-repeat;border-bottom:1px solid #876c46}.hero h1{font-size:34px;line-height:1.05;letter-spacing:-.02em}.hero p{margin-top:4px;color:#e3d1a6;font-size:13px}.hero.detail{background-image:linear-gradient(90deg,#0b1826f5 10%,#0b1826bc 50%,#0b182611),url(art/nile.webp);min-height:117px}.profile{display:flex;align-items:center;gap:10px}.profile h1{font-size:28px}.hero,.hero.detail{background-size:cover;background-position:center,center 45%}.line strong,.action>span:first-child{display:flex;align-items:center;gap:8px}.dealicon{flex:none;width:24px;height:24px;background:url(art/dealings.webp) 0 center/500% 100%}.navicon{min-width:36px;min-height:36px}.back{min-height:44px;color:#dcc49b;padding:0 16px}
+.filters{display:flex;background:#101f2a;border-bottom:1px solid var(--line)}.filters button{flex:1;text-align:center;min-height:45px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;font-size:14px}.filters [aria-pressed=true]{color:var(--gold);border-color:var(--gold);background:#eac27009}.filters small{font-variant-numeric:tabular-nums;margin-left:4px}
+.list,.body{padding:0 14px 14px}.group{display:flex;align-items:center;gap:10px;color:#ccb88c;font:600 12px/1.25 system-ui;letter-spacing:.04em;margin:15px 0 3px}.group:after{content:'';height:1px;background:#625338;flex:1}
+.row{width:100%;display:flex;align-items:center;gap:10px;min-height:62px;padding:7px 0;border-bottom:1px solid #33414a}.row:hover,.action:hover{background:#d3b98e0b}.rowtxt{flex:1;min-width:0}.house-name{display:block;font-size:20px;line-height:1.17}.sub{display:block;font-size:13px;line-height:1.32;color:var(--muted);margin-top:4px}.row.warn .sub,.bad{color:#ffae97}.row.soon .sub{color:#ebc883}.chev{color:#bbaa89;margin-left:auto;font-size:20px}.rank{font-variant-numeric:tabular-nums;color:#adb6ba;font-size:12px}
+.crest,.navicon{width:44px;height:48px;flex:none;background-image:url(art/insignia.webp);background-size:1000% 100%;background-position:var(--pos) center;background-repeat:no-repeat}.crest.fallback{background:none;border:1px solid var(--line);color:var(--gold);display:grid;place-items:center;font:24px Georgia}
+nav{display:flex;flex:none;border-top:1px solid #856f4e;padding-bottom:env(safe-area-inset-bottom);background:#09141f}nav button{flex:1;min-height:61px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;color:#b7c1c3}.navicon{width:30px;height:30px}nav [aria-current=page]{color:var(--gold);background:#efbd5c0c;box-shadow:inset 0 2px var(--gold)}
+.body{padding-top:12px}.ledger{background:#11222d;border:1px solid #435053;border-radius:5px;overflow:hidden}.line,.action{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:44px;padding:8px 12px}.line+.line{border-top:1px solid #35434a}.line strong{font-size:14px}.line span,.action small{font-size:13px;color:#d5c5a5;text-align:right}.action{border:1px solid #3d505b;border-radius:5px;background:#152b38;margin-top:7px;font-weight:600;min-height:46px}.action.primary{background:#e6bd69;color:#241e14;border-color:#eac778}.primary small{color:#4c3718}.action.hostile{border-color:#78534e;color:#f4b09d;background:#281f23}.action.hostile small{color:#dcc1b6}
+.notice{padding:10px 12px;margin:6px 0 10px;border-left:3px solid #d6b06b;background:#1d3036;color:#f3e8d0}.footnote{margin-top:10px;color:var(--muted);font-size:13px}.reset{margin-top:12px;color:#b4bfc1;font-size:12px;min-height:44px}.facts{margin-top:12px}.facts summary{min-height:44px;align-content:center;color:#d7c8ac}.facts .line{align-items:flex-start}.toast{position:absolute;bottom:70px;left:12px;right:12px;padding:10px;background:#223640;border:1px solid #6d756f;border-radius:5px}
+@media(max-width:355px){.hud{gap:6px}.hero h1{font-size:29px}.row{gap:7px}.house-name{font-size:18px}.list,.body{padding-left:10px;padding-right:10px}}
 </style>
 </helmet>
-<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; background: #0d1b2e; color: #f5efde; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 1.4">
-
-  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.23fr) 44px auto; align-items: center; gap: 5px; height: 64px; box-sizing: border-box; padding: 4px 4%; border-bottom: 2px solid #586779; background: linear-gradient(#102035, #091525); flex: none">
-    <div style="text-align: center; white-space: nowrap; font-size: 16px; font-weight: 700; text-transform: uppercase">Year <b style="font-size: 21px">41</b></div>
-    <button onClick="{{ goldTap }}" aria-label="Gold, income and loans" style="display: flex; justify-content: center; align-items: flex-start; gap: 6px; min-height: 44px; padding: 0 7%; border: 0; border-inline: 1px solid #7d8a96; border-radius: 0; background: none">
-      <svg aria-hidden="true" width="21" height="21" viewBox="0 0 32 32" fill="none" stroke="#f1c54b" stroke-width="2" stroke-linejoin="round" style="margin-top: 3px"><path d="M14 7c0-5 16-5 16 0s-16 5-16 0zM14 7v8c0 5 16 5 16 0V7M14 11c0 5 16 5 16 0M2 18c0-5 17-5 17 0s-17 5-17 0zM2 18v8c0 5 17 5 17 0v-8M2 22c0 5 17 5 17 0"/></svg>
-      <span style="display: flex; flex-direction: column"><b style="font-size: 21px; line-height: 1.15; font-variant-numeric: tabular-nums">{{gold}}</b><span style="font-size: 12px">{{income}}/yr</span></span>
-    </button>
-    <button onClick="{{ timeTap }}" aria-label="Play" style="display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none"><svg aria-hidden="true" width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="box-sizing: border-box; padding: 5px; border: 2px solid #a6a8a4; border-radius: 50%"><path d="M10 5l18 11-18 11z"/></svg></button>
-    <button onClick="{{ timeTap }}" aria-label="Game speed, 1 times" style="display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 3px; border: 0; background: none; font-weight: 700">1×<svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5"/></svg></button>
-  </div>
-
-  <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
-    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px">
-      <div style="display: flex; align-items: center; justify-content: space-between">
-        <h2 style="margin: 0; font-family: 'Pixelify Sans', monospace; font-size: 28px">Houses</h2>
-        <button onClick="{{ reset }}" style="min-height: 44px; padding: 0 4px; border: 0; background: none; color: #9cadc3; font-size: 13px; text-decoration: underline">Start over</button>
-      </div>
-      <div style="display: flex; gap: 8px; margin: 8px 0 14px">
-        <button onClick="{{ showMine }}" aria-pressed="{{ mineOn }}" style="min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid {{mineLine}}; background: {{mineFill}}; font-weight: 650">You deal with · 6</button>
-        <button onClick="{{ showAll }}" aria-pressed="{{ allOn }}" style="min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid {{allLine}}; background: {{allFill}}; font-weight: 650">World ranking · 41</button>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 8px">
-        <sc-for list="{{ rows }}" as="h" hint-placeholder-count="6">
-          <button onClick="{{ h.open }}" style="display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid #2b415d; border-radius: 12px; background: #172a43; opacity: {{h.fade}}">
-            <sc-if value="{{ h.rank }}" hint-placeholder-val="{{ false }}"><span style="width: 22px; font-size: 13px; color: #9cadc3; font-variant-numeric: tabular-nums">{{h.rank}}</span></sc-if>
-            <span aria-hidden="true" style="flex: none; width: 34px; height: 40px; display: grid; place-items: center; border-radius: 6px 6px 16px 16px; background: {{h.color}}; color: #0d1b2e; font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 18px">{{h.initial}}</span>
-            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
-              <span style="font-weight: 700; font-size: 16px">{{h.name}}</span>
-              <span style="font-size: 13px; color: #b9c7d8">{{h.fact}}</span>
-              <sc-if value="{{ h.tag }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; font-weight: 700; color: #ff9d8a">{{h.tag}}</span></sc-if>
-            </span>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#9cadc3" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg>
-          </button>
-        </sc-for>
-      </div>
-      <sc-if value="{{ allOn }}" hint-placeholder-val="{{ false }}"><p style="margin: 12px 4px 0; font-size: 13px; color: #9cadc3">31 more houses you have never dealt with.</p></sc-if>
-    </div>
-  </sc-if>
-
-  <sc-if value="{{ isHouse }}" hint-placeholder-val="{{ false }}">
-    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 20px">
-      <button onClick="{{ back }}" style="display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0; border: 0; background: none; color: #b9c7d8; font-size: 14px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3L5 8l5 5"/></svg>Houses</button>
-
-      <div style="display: flex; gap: 14px; padding: 14px; border: 1px solid #2b415d; border-radius: 14px; background: #172a43">
-        <span aria-hidden="true" style="flex: none; width: 46px; height: 54px; display: grid; place-items: center; border-radius: 8px 8px 22px 22px; background: #7fb7c9; color: #0d1b2e; font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 24px">L</span>
-        <div style="min-width: 0; display: flex; flex-direction: column; gap: 4px">
-          <h2 style="margin: 0; font-family: 'Pixelify Sans', monospace; font-size: 24px; line-height: 1.1">House Leontes</h2>
-          <div style="font-size: 15px; font-weight: 650; color: {{headTone}}">{{line1}}</div>
-          <div style="font-size: 14px; color: #b9c7d8">{{line2}}</div>
-        </div>
-      </div>
-
-      <sc-if value="{{ said }}" hint-placeholder-val="{{ false }}">
-        <div role="status" style="margin-top: 10px; padding: 10px 12px; border: 1px solid #3f7f68; border-radius: 10px; background: #173a33; font-size: 14px">{{said}}</div>
-      </sc-if>
-      <sc-if value="{{ out }}" hint-placeholder-val="{{ false }}">
-        <button onClick="{{ unwired }}" style="display: block; width: 100%; margin-top: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid #c9705f; border-radius: 10px; background: #3a1f1f; font-size: 14px; font-weight: 650; color: #ffb3a4">No one runs the garrison of Egypt. Choose who does</button>
-      </sc-if>
-
-      <h3 style="margin: 18px 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #9cadc3">What you can do</h3>
-      <div style="display: flex; flex-direction: column; gap: 8px">
-        <sc-for list="{{ plain }}" as="a" hint-placeholder-count="3">
-          <button onClick="{{ a.go }}" disabled="{{ a.off }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 52px; padding: 8px 14px; border: 1px solid #3a5577; border-radius: 12px; background: #1c304a; opacity: {{a.fade}}">
-            <span style="font-weight: 700; font-size: 16px">{{a.label}}</span><span style="font-size: 13px; color: #f1c54b; text-align: right">{{a.note}}</span>
-          </button>
-        </sc-for>
-        <button onClick="{{ toggleMore }}" aria-expanded="{{ moreOpen }}" style="display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 48px; padding: 8px 14px; border: 1px solid #2b415d; border-radius: 12px; background: #14243a; color: #b9c7d8"><span style="font-weight: 650">More actions</span><span style="font-size: 13px">{{moreHint}}</span></button>
-        <sc-if value="{{ moreOpen }}" hint-placeholder-val="{{ false }}">
-          <sc-for list="{{ more }}" as="a" hint-placeholder-count="4">
-            <button onClick="{{ a.go }}" disabled="{{ a.off }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; border: 1px solid #2b415d; border-radius: 12px; background: #172a43; opacity: {{a.fade}}">
-              <span style="font-weight: 650">{{a.label}}</span><span style="font-size: 13px; color: #f1c54b; text-align: right">{{a.note}}</span>
+<div class="app">
+  <header class="hud">
+    <span class="year">Year 41</span>
+    <button class="money" onClick="{{ goldTap }}" aria-label="Treasury"><i class="coin"></i><strong>{{gold}}</strong><small>{{income}}/yr</small></button>
+    <button class="clock" onClick="{{ timeTap }}" aria-label="Time controls">▶　1×</button>
+  </header>
+  <sc-if value="{{ isList }}">
+    <main class="page" data-scroll="{{ filterKey }}">
+      <header class="hero"><h1>Houses</h1><p>Heir support {{support}}%</p></header>
+      <div class="filters"><button onClick="{{ showMine }}" aria-pressed="{{ mineOn }}">My dealings <small>6</small></button><button onClick="{{ showAll }}" aria-pressed="{{ allOn }}">World ranking <small>41</small></button></div>
+      <div class="list">
+        <sc-for list="{{ groups }}" as="group">
+          <h2 class="group">{{group.label}}</h2>
+          <sc-for list="{{ group.rows }}" as="h">
+            <button class="row {{h.level}}" onClick="{{ h.open }}" data-key="{{h.name}}">
+              <sc-if value="{{ h.rank }}"><span class="rank">{{h.rank}}</span></sc-if>
+              <span aria-hidden="true" class="crest {{h.fallback}}" style="--pos:{{h.pos}}">{{h.monogram}}</span>
+              <span class="rowtxt"><strong class="house-name">{{h.short}}</strong><span class="sub">{{h.summary}}</span></span><span class="chev" aria-hidden="true">›</span>
             </button>
           </sc-for>
+        </sc-for>
+        <sc-if value="{{ allOn }}"><p class="footnote">Top 10 of 41 houses shown.</p></sc-if>
+        <button class="reset" onClick="{{ resetPrompt }}">Reset prototype…</button>
+      </div>
+    </main>
+  </sc-if>
+  <sc-if value="{{ detail }}">
+    <main class="page" data-scroll="{{ detailKey }}">
+      <button class="back" onClick="{{ back }}">‹　Houses</button>
+      <header class="hero {{heroClass}}"><div class="profile"><span aria-hidden="true" class="crest {{selected.fallback}}" style="--pos:{{selected.pos}}">{{selected.monogram}}</span><div><h1>{{selected.name}}</h1><p>{{place}}</p></div></div></header>
+      <div class="body">
+        <sc-if value="{{ isOther }}">
+          <div class="ledger"><sc-for list="{{ dossier }}" as="d"><div class="line"><strong>{{d.label}}</strong><span>{{d.value}}</span></div></sc-for></div>
+        </sc-if>
+        <sc-if value="{{ isHouse }}">
+          <sc-if value="{{ said }}"><p class="notice" role="status">{{said}}</p></sc-if>
+          <div class="ledger">
+            <div class="line"><strong><i class="dealicon" aria-hidden="true" style="background-position:0% center"></i>Egyptian garrison</strong><span>{{garrison}}</span></div>
+            <div class="line"><strong><i class="dealicon" aria-hidden="true" style="background-position:25% center"></i>Heir pledge</strong><span>{{heirPledge}}</span></div>
+            <button class="line" onClick="{{ tradeAction.go }}" disabled="{{ tradeAction.off }}"><strong><i class="dealicon" aria-hidden="true" style="background-position:50% center"></i>Trade route</strong><span>{{tradeAction.note}}　›</span></button>
+          </div>
+          <sc-for list="{{ primaryActions }}" as="a"><button class="action {{a.style}}" onClick="{{ a.go }}" disabled="{{ a.off }}"><span><i class="dealicon" aria-hidden="true" style="background-position:{{a.icon}} center"></i>{{a.label}}</span><small>{{a.note}}　›</small></button></sc-for>
+          <button class="action" onClick="{{ toggleMore }}" aria-expanded="{{ moreOpen }}"><span>More dealings</span><small>{{moreHint}}</small></button>
+          <sc-if value="{{ moreOpen }}"><sc-for list="{{ more }}" as="a"><button class="action" onClick="{{ a.go }}" disabled="{{ a.off }}"><span>{{a.label}}</span><small>{{a.note}}</small></button></sc-for></sc-if>
+          <button class="action hostile" onClick="{{ toggleHostile }}" aria-expanded="{{ hostileOpen }}"><span>Hostile actions</span><small>{{hostileHint}}</small></button>
+          <sc-if value="{{ hostileOpen }}"><sc-for list="{{ hostile }}" as="a"><button class="action hostile" onClick="{{ a.go }}" disabled="{{ a.off }}"><span>{{a.label}}</span><small>{{a.note}}</small></button></sc-for></sc-if>
+          <details class="facts" data-retain="terms"><summary>Relationship details</summary><div class="ledger"><sc-for list="{{ facts }}" as="f"><div class="line"><strong>{{f.label}}</strong><span>{{f.value}}</span></div></sc-for></div></details>
         </sc-if>
       </div>
-
-      <h3 style="margin: 22px 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #ff9d8a">Hostile actions</h3>
-      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
-        <sc-for list="{{ hostile }}" as="a" hint-placeholder-count="4">
-          <button onClick="{{ a.go }}" disabled="{{ a.off }}" style="display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 8px 12px; border: 1px solid #7a4a45; border-radius: 12px; background: #261c22; opacity: {{a.fade}}">
-            <span style="font-weight: 700">{{a.label}}</span><span style="font-size: 12px; color: #e7b9ae">{{a.note}}</span>
-          </button>
-        </sc-for>
-      </div>
-
-      <h3 style="margin: 22px 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #9cadc3">Between you</h3>
-      <div style="border: 1px solid #2b415d; border-radius: 12px; background: #14243a">
-        <sc-for list="{{ facts }}" as="f" hint-placeholder-count="6">
-          <div style="display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-top: 1px solid #22364f; font-size: 14px">
-            <span style="flex: none; color: #9cadc3">{{f.label}}</span><span style="text-align: right; color: {{f.tone}}">{{f.value}}</span>
-          </div>
-        </sc-for>
-      </div>
-    </div>
+    </main>
   </sc-if>
-
-  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 66px; border-top: 1px solid #2b415d; background: #0a1524; flex: none">
-    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
-      <button onClick="{{ t.go }}" aria-current="{{ t.on }}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: none; color: {{t.tone}}; font-size: 13px; font-weight: 650">
-        <span aria-hidden="true" style="width: 22px; height: 4px; border-radius: 2px; background: {{t.bar}}"></span>{{t.name}}
-      </button>
-    </sc-for>
-  </div>
-
+  <nav aria-label="Game tabs"><sc-for list="{{ tabs }}" as="t"><button onClick="{{ t.go }}" aria-current="{{ t.on }}"><span aria-hidden="true" class="navicon" style="--pos:{{t.pos}}"></span>{{t.name}}</button></sc-for></nav>
   <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
     <div role="status" style="position: absolute; left: 16px; right: 16px; bottom: 78px; padding: 10px 14px; border: 1px solid #56708f; border-radius: 10px; background: #22364f; font-size: 14px">{{toast}}</div>
   </sc-if>
@@ -177,7 +134,7 @@ button:focus-visible{outline:2px solid #f1c54b;outline-offset:2px}
 class Component extends DCLogic {
   state = this.fresh();
   fresh() {
-    return { screen: 'list', filter: 'mine', sheet: null, more: false, toast: '', said: '', gold: 212,
+    return { screen: 'list', selected: 'House Leontes', hostileOpen: false, filter: 'mine', sheet: null, more: false, toast: '', said: '', gold: 212,
       favour: true, soldiers: false, wed: '', route: true, owe: false, gifts: 0, out: false };
   }
   renderVals() {
@@ -207,8 +164,33 @@ class Component extends DCLogic {
       ['House Brennus', 'B', '#b48ad1', 'Rules 1 land · 15,000 soldiers'], ['House Sabinus', 'S', '#e0c36a', 'No land · 11,000 soldiers'],
     ].map((w, i) => ({ rank: String(i + 1), name: w[0], initial: w[1], color: w[2], fact: w[3], tag: '', stranger: !!w[4],
       open: w[0] === 'House Leontes' ? () => set({ screen: 'house' }) : null }));
-    const rows = (s.filter === 'mine' ? mine : world).map((h) => Object.assign({ rank: '', fade: h.stranger ? 0.6 : 1 }, h,
-      { open: h.open || note('Only House Leontes is filled in for this prototype.') }));
+    const summaries = [
+      gone ? 'Garrison vacant in Egypt' : (s.soldiers ? 'Egyptian garrison · Sends soldiers' : 'Egyptian garrison · Backs your heir'),
+      'Withholding the garrison in Italia', 'Lent you 80 gold · Due in 2 years',
+      'Married ally until 68 · Sends troops', 'Italian markets · Trade partner', 'Rules neighbouring Syria · Wary of you',
+    ];
+    const positions = [2, 0, 1, 3, 4, 5];
+    function entry(h) {
+      const index = mine.findIndex(peer => peer.name === h.name);
+      const slot = positions[index];
+      return { ...h, short: h.name.replace(/^House /, ''), fallback: slot === undefined ? 'fallback' : '',
+        pos: slot === undefined ? '0%' : (slot / 9 * 100) + '%', monogram: slot === undefined ? h.initial : '',
+        level: index === 1 || (index === 0 && gone) ? 'warn' : index === 2 ? 'soon' : '',
+        summary: s.filter === 'all' ? h.fact : summaries[index],
+        open: () => set({ screen: h.name === 'House Leontes' ? 'house' : 'other', selected: h.name, more: false, hostileOpen: false }) };
+    }
+    const rows = (s.filter === 'mine' ? mine : world).map(entry);
+    const groups = s.filter === 'all' ? [{ label: 'By world standing', rows }] : [
+      { label: 'Needs attention', rows: rows.filter(h => h.level) },
+      { label: 'Other dealings', rows: rows.filter(h => !h.level) },
+    ];
+    const selected = entry(mine.find(h => h.name === s.selected) || world.find(h => h.name === s.selected) || mine[0]);
+    const standing = world.find(h => h.name === selected.name);
+    const dossier = [];
+    if (selected.tag) dossier.push({label: selected.initial === 'B' ? 'Loan deadline' : 'Current issue', value: selected.tag});
+    dossier.push({label: 'Relationship', value: selected.fact});
+    if (standing && standing.fact !== selected.fact) dossier.push({label: 'Strength', value: standing.fact});
+    if (standing) dossier.push({label: 'World rank', value: standing.rank + ' of 41'});
 
     const facts = gone ? [
       { label: 'Runs for you', value: 'Nothing. The garrison of Egypt stands empty', tone: '#ff9d8a' },
@@ -228,7 +210,7 @@ class Component extends DCLogic {
 
     const open = (sheet) => () => set({ sheet: sheet });
     const plain = [
-      btn('Ask a favour', gone ? '' : s.favour ? 'It owes you one' : 'Nothing owed', open('favour'), gone || !s.favour),
+      btn('Call in favour', gone ? '' : s.favour ? '1 owed' : 'Nothing owed', open('favour'), gone || !s.favour),
       btn('Arrange marriage', gone ? '' : tied ? 'Already joined' : '30 gold', open('marry'), gone || tied),
       btn('Manage trade', gone ? '' : s.route ? '+6 gold a year' : 'No route', open('trade'), gone),
     ];
@@ -258,12 +240,14 @@ class Component extends DCLogic {
     ].filter(Boolean);
 
     const sheets = {
+      reset: ['Reset this prototype?', 'Restore the six starting relationships and 212 gold.', '#f1c54b'],
       drive: ['Drive out House Leontes?', 'Turn your soldiers on it in the land you rule. This is what you stand to gain and lose.', '#c9705f'],
       favour: ['Ask a favour of House Leontes', 'It owes you one favour, and this spends it. It already backs your heir.', '#f1c54b'],
       marry: ['Who marries into House Leontes?', 'A marriage joins your houses for 40 years: it fights beside you, and you cannot drive it out. Costs 30 gold.', '#f1c54b'],
       trade: ['Trade with House Leontes', s.route ? 'A route is open and pays you 6 gold a year.' : 'No route is open between you.', '#f1c54b'],
     }[s.sheet] || ['', '', '#2b415d'];
     const picks = {
+      reset: [btn('Reset prototype', 'Discard this demo session', () => this.setState(this.fresh()))],
       favour: [
         btn('Send soldiers to my wars', '4,000 soldiers whenever you fight, for 20 years', () => act({ favour: false, soldiers: true }, 'House Leontes will send soldiers to your wars until year 61. Its favour is spent.')),
         btn('Back my heir', 'Already promised until year 71', null, true),
@@ -281,11 +265,19 @@ class Component extends DCLogic {
       ],
     }[s.sheet] || [];
 
-    const tabs = ['Map', 'Family', 'Houses', 'Lands'].map((name) => ({ name: name, on: name === 'Houses' ? 'page' : 'false',
+    const tabs = ['Map', 'Family', 'Houses', 'Lands'].map((name, i) => ({ name: name, pos: ((6 + i) / 9 * 100) + '%', on: name === 'Houses' ? 'page' : 'false',
       tone: name === 'Houses' ? '#f1c54b' : '#b9c7d8', bar: name === 'Houses' ? '#f1c54b' : 'transparent',
       go: name === 'Houses' ? () => set({ screen: 'list', sheet: null }) : note('Only the Houses tab is built in this prototype.') }));
 
     return {
+      groups, selected, dossier, detail: s.screen !== 'list', isOther: s.screen === 'other',
+      filterKey: 'list-' + s.filter, detailKey: 'detail-' + s.selected,
+      heroClass: s.screen === 'house' ? 'detail' : '', place: s.screen === 'house' ? 'Egypt' : 'House relations',
+      support: gone ? 51 : 64, garrison: gone ? 'Vacant' : '6,000 soldiers', heirPledge: gone ? 'Withdrawn' : 'Backs you until year 71',
+      tradeAction: plain[2], primaryActions: [{...plain[0], icon:'75%', style: s.favour ? 'primary' : ''}, {...plain[1], icon:'100%'}],
+      hostileOpen: s.hostileOpen, toggleHostile: () => set({hostileOpen: !s.hostileOpen}),
+      hostileHint: s.hostileOpen ? 'Hide' : 'Slander, unrest, expulsion',
+      resetPrompt: open('reset'),
       gold: String(s.gold), income: income, goldTap: note('This would open taxes, income, trade routes and loan totals. Not built in this prototype.'), timeTap: note('Time does not run in this prototype.'),
       isList: s.screen === 'list', isHouse: s.screen === 'house', rows: rows,
       mineOn: s.filter === 'mine', allOn: s.filter === 'all',
@@ -341,13 +333,55 @@ class Component extends DCLogic {
     for (const c of node.childNodes) build(c, scope, el);
     out.append(el);
   }
-  // Redraw everything, keeping each scrolling box where the reader left it.
+  // Each list/filter and detail page owns its scroll position.
+  const scroll = new Map();
+  let trigger, lastPage;
   function draw() {
-    const boxes = () => [...root.querySelectorAll('[style*="overflow-y: auto"]')], at = boxes().map(b => b.scrollTop), next = document.createDocumentFragment();
-    for (const n of template) build(n, logic.renderVals(), next);
+    const active = document.activeElement;
+    const identity = el => el?.getAttribute('data-key') || el?.getAttribute('aria-label') || el?.textContent.trim();
+    const oldFocus = active?.matches('button,summary') ? identity(active) : null;
+    const previous = root.querySelector('main');
+    const oldPage = previous?.dataset.scroll;
+    const hadDialog = !!root.querySelector('[role=dialog]');
+    for (const el of root.querySelectorAll('[data-scroll]')) scroll.set(el.dataset.scroll, el.scrollTop);
+    const expanded = previous?.querySelector('details[open]')?.dataset.retain;
+    const values = logic.renderVals(), next = document.createDocumentFragment();
+    for (const n of template) build(n, values, next);
     root.replaceChildren(next);
-    boxes().forEach((b, i) => { b.scrollTop = at[i] ?? 0; });
+    const page = root.querySelector('main');
+    const samePage = page?.dataset.scroll === oldPage;
+    const dialog = root.querySelector('[role=dialog]');
+    const controls = [...root.querySelectorAll('button:not(:disabled),summary')];
+    if (expanded && samePage) page.querySelector('details[data-retain]')?.setAttribute('open', '');
+    if (dialog) {
+      dialog.setAttribute('aria-modal', 'true');
+      for (const el of [...root.firstElementChild.children]) {
+        if (!el.contains(dialog)) el.inert = true;
+      }
+      if (!hadDialog) trigger = oldFocus;
+      dialog.tabIndex = -1;
+      dialog.focus({preventScroll:true});
+    } else {
+      let target = oldFocus;
+      if (hadDialog && samePage) target = trigger;
+      if (!samePage && page?.dataset.scroll.startsWith('list-') && oldPage?.startsWith('detail-')) target = lastPage;
+      if (!samePage && page?.dataset.scroll.startsWith('detail-')) { lastPage = oldFocus; target = '‹　Houses'; }
+      controls.find(el => identity(el) === target)?.focus({preventScroll:true});
+    }
+    for (const el of root.querySelectorAll('[data-scroll]')) el.scrollTop = scroll.get(el.dataset.scroll) || 0;
   }
+  root.addEventListener('keydown', e => {
+    const dialog = root.querySelector('[role=dialog]');
+    if (!dialog) return;
+    if (e.key === 'Escape') { e.preventDefault(); logic.setState({sheet:null}); }
+    if (e.key !== 'Tab') return;
+    const buttons = [...dialog.querySelectorAll('button:not(:disabled)')];
+    if (e.shiftKey && [buttons[0], dialog].includes(document.activeElement)) {
+      e.preventDefault(); buttons.at(-1)?.focus();
+    } else if (!e.shiftKey && document.activeElement === buttons.at(-1)) {
+      e.preventDefault(); buttons[0]?.focus();
+    }
+  });
   draw();
 })();
 </script>
