@@ -20,10 +20,14 @@ button:focus-visible{outline:2px solid #f1c54b;outline-offset:2px}
 </helmet>
 <div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; background: #0d1b2e; color: #f5efde; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 1.4">
 
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px; border-bottom: 1px solid #2b415d; flex: none">
-    <div style="font-family: 'Pixelify Sans', monospace; font-size: 20px; font-weight: 700">YEAR 41</div>
-    <div style="display: flex; align-items: baseline; gap: 6px"><span style="font-size: 22px; font-weight: 700; color: #f1c54b">{{gold}}</span><span style="font-size: 12px; color: #9cadc3">gold · {{income}} a year</span></div>
-    <div style="font-size: 12px; color: #9cadc3">Heir backed {{support}}</div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.23fr) 44px auto; align-items: center; gap: 5px; height: 64px; box-sizing: border-box; padding: 4px 4%; border-bottom: 2px solid #586779; background: linear-gradient(#102035, #091525); flex: none">
+    <div style="text-align: center; white-space: nowrap; font-size: 16px; font-weight: 700; text-transform: uppercase">Year <b style="font-size: 21px">41</b></div>
+    <button onClick="{{ goldTap }}" aria-label="Gold, income and loans" style="display: flex; justify-content: center; align-items: flex-start; gap: 6px; min-height: 44px; padding: 0 7%; border: 0; border-inline: 1px solid #7d8a96; border-radius: 0; background: none">
+      <svg aria-hidden="true" width="21" height="21" viewBox="0 0 32 32" fill="none" stroke="#f1c54b" stroke-width="2" stroke-linejoin="round" style="margin-top: 3px"><path d="M14 7c0-5 16-5 16 0s-16 5-16 0zM14 7v8c0 5 16 5 16 0V7M14 11c0 5 16 5 16 0M2 18c0-5 17-5 17 0s-17 5-17 0zM2 18v8c0 5 17 5 17 0v-8M2 22c0 5 17 5 17 0"/></svg>
+      <span style="display: flex; flex-direction: column"><b style="font-size: 21px; line-height: 1.15; font-variant-numeric: tabular-nums">{{gold}}</b><span style="font-size: 12px">{{income}}/yr</span></span>
+    </button>
+    <button onClick="{{ timeTap }}" aria-label="Play" style="display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none"><svg aria-hidden="true" width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="box-sizing: border-box; padding: 5px; border: 2px solid #a6a8a4; border-radius: 50%"><path d="M10 5l18 11-18 11z"/></svg></button>
+    <button onClick="{{ timeTap }}" aria-label="Game speed, 1 times" style="display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 3px; border: 0; background: none; font-weight: 700">1×<svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5"/></svg></button>
   </div>
 
   <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
@@ -183,7 +187,6 @@ class Component extends DCLogic {
     const btn = (label, n, go, off) => ({ label: label, note: n, go: go, off: !!off, fade: off ? 0.45 : 1 });
     const gone = s.out, tied = !!s.wed;
     const opinion = gone ? -56 : 34 + s.gifts * 10 + (tied ? 20 : 0);
-    const support = gone ? '51%' : '64%';
     const income = '+' + (17 - (s.route && !gone ? 0 : 6)) ;
 
     const leontesFact = gone ? 'Driven out of Egypt · holds a grievance'
@@ -283,7 +286,7 @@ class Component extends DCLogic {
       go: name === 'Houses' ? () => set({ screen: 'list', sheet: null }) : note('Only the Houses tab is built in this prototype.') }));
 
     return {
-      gold: String(s.gold), income: income, support: support,
+      gold: String(s.gold), income: income, goldTap: note('This would open taxes, income, trade routes and loan totals. Not built in this prototype.'), timeTap: note('Time does not run in this prototype.'),
       isList: s.screen === 'list', isHouse: s.screen === 'house', rows: rows,
       mineOn: s.filter === 'mine', allOn: s.filter === 'all',
       mineLine: s.filter === 'mine' ? '#f1c54b' : '#2b415d', mineFill: s.filter === 'mine' ? '#2a3a2a' : '#172a43',
