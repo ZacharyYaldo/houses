@@ -554,6 +554,37 @@ summary small.bad { color:var(--bad); }
 .map-notice { display:flex; align-items:stretch; gap:4px; }
 .map-notice .home-alert { flex:1; min-width:0; min-height:44px; }
 .map-notice .postpone { border:0; background:none; color:var(--dim); padding:0 8px; font-size:12px; }
+
+/* Stable, labelled shortcuts on the map and the three directories. */
+.quick-orders { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid #63543e; border-radius:5px; background:#152630; overflow:hidden; }
+.quick-orders button,.work-switch button { min-width:0; min-height:44px; padding:4px 2px; border:0; border-radius:0; background:transparent; color:#eedbb4; font:650 13px/1.15 var(--body); }
+.quick-orders button+button,.work-switch button+button { border-left:1px solid #415057; }
+.quick-orders .all-orders { color:var(--gold); background:#b899510d; }
+.quick-orders button:focus-visible,.order-link:focus-visible { outline-offset:-3px; }
+#sheet .body[data-page="actions"] .dynasty-banner,#sheet .body[data-page^="action:"] .dynasty-banner { min-height:64px; padding-block:10px; }
+.order-directory,.order-options { display:grid; gap:12px; min-width:0; }
+.order-directory .target-filter,.order-options .target-filter { width:100%; margin:0; }
+.order-links { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:12px; }
+.order-link { border:0; border-radius:0; border-bottom:1px solid var(--line); background:transparent; min-height:44px; padding:7px 0; text-align:left; display:flex; align-items:center; justify-content:space-between; gap:4px; font-size:14px; }
+.order-link .glyph { flex:none; width:13px; height:13px; color:#b4a488; }
+.order-options ul { list-style:none; padding:0; display:grid; gap:7px; margin:6px 0 0; }
+#sheet .order-choice { border-radius:5px; background:#142731; padding:8px 10px; }
+#sheet .order-choice>span { overflow-wrap:anywhere; }
+#sheet .order-choice b { font:600 17px/1.15 Georgia,serif; }
+#sheet .order-choice small { font-size:12px; }
+#sheet .order-choice button[data-act] { color:#f7e2b8; background:#253741; border-color:#766548; }
+.order-hint { margin:0; color:var(--dim); font-size:13px; line-height:1.45; }
+.marriage-child { display:flex; align-items:center; gap:10px; font-size:14px; }
+.marriage-child select { flex:1; min-width:0; max-width:100%; font-weight:600; color:var(--ink); }
+.work-switch { display:flex; border:1px solid var(--line); border-radius:4px; }
+.work-switch button { flex:1; }
+.work-switch [aria-pressed=true] { color:var(--gold); box-shadow:inset 0 -2px var(--gold); }
+@media(max-width:350px) { .quick-orders button { font-size:12px; } }
+.return-bar { display:flex; align-items:stretch; background:#0b1722; }
+#sheet .return-bar .return-link { flex:1; width:auto; }
+#sheet .find-orders { min-height:44px; padding:0 15px; background:transparent; border:0; font-size:13px; font-weight:600; color:var(--gold); }
+.order-directory>.target-filter { position:sticky; top:0; z-index:1; background:#12232e; }
+.home-house>.sigil { display:block; flex:none; position:absolute; left:4%; top:50%; transform:translateY(-50%); width:clamp(42px,13vw,57px); height:auto; aspect-ratio:11/12; }
 </style>
 </head>
 <body>
@@ -577,7 +608,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 11:56 PM ET · 28c8970';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 27, 2026, 11:59 PM ET · 6551f26';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -3672,6 +3703,144 @@ function illustration(name) {
 
 return { icon, crest, portrait, illustration };
 })();
+__m['js/ui/action-menu.js'] = (() => {
+// An action-first path into the same orders offered on person, house and land pages.
+const { ASKS, CFG, HOLDINGS, JOBS } = __m['js/config.js'];
+const { REGIONS } = __m['js/data/regions.js'];
+const { ACTIONS, barred } = __m['js/sim/actions.js'];
+const { unwed } = __m['js/sim/family.js'];
+const { terms } = __m['js/sim/court.js'];
+const { house } = __m['js/sim/state.js'];
+const { esc } = __m['js/ui/dom.js'];
+const { icon } = __m['js/ui/art.js'];
+
+const groups = [
+  ['Family & succession', ['marry','heir','tutor','stipend',...Object.keys(JOBS),'branch']],
+  ['Diplomacy & trade', ['feast','ask','gift','pact','unpact','borrow','lend','repay']],
+  ['Lands & government', ['farms','schools','roads','project','grant','office','tax','fund']],
+  ['Rivals & war', ['purge','war','coup','slander','stir','reinforce','assault','peace','yield','press','bomb']],
+];
+const short = {
+  marry:'Marry', feast:'Feast', purge:'Drive out', heir:'Name heir', tutor:'Tutor',
+  pact:'Trade', ask:'Ask favour', farms:'Build', tax:'Taxes', fund:'Research',
+};
+const fullName = {
+  ask:'Ask for a favour or support', fund:'Research & scholar funding', project:'Develop your seat',
+  purge:'Drive out a house', grant:'Assign a holding', office:'Give a house a court job',
+};
+const aliases = {
+  marry:'marriage wedding alliance match spouse', heir:'inheritance succession child',
+  tutor:'educate teach train child', stipend:'salary relative', feast:'banquet celebration',
+  ask:'favor favour pledge troops soldiers heir support', pact:'commerce partner route',
+  purge:'expel remove evict exile rival', coup:'overthrow rebellion revolt',
+  grant:'vacancy appoint keeper operator estate', office:'appointment political position',
+  project:'construction institution specialisation capital', fund:'science schools knowledge research',
+  tax:'taxes income levy', branch:'settle expand', war:'attack invade conquer declare',
+};
+const shortcuts = {
+  map:['marry','feast','purge'], family:['marry','heir','tutor'],
+  houses:['pact','ask','purge'], lands:['farms','tax','feast'],
+};
+
+const actionName = id => fullName[id] || ACTIONS[id].label;
+const route = id => ({project:'group:seat', fund:'group:know'})[id] || 'action:'+id;
+
+function actionShortcuts(context) {
+  return '<div class="quick-orders" role="group" aria-label="Actions">' + shortcuts[context].map(id =>
+    `<button data-open="${route(id)}">${short[id]}</button>`).join('')
+    + `<button class="all-orders" data-open="actions">All actions</button></div>`;
+}
+
+function actionDirectory() {
+  const sections = groups.map(([title,ids]) => {
+    const links = ids.map(id => {
+      const a = ACTIONS[id], name = actionName(id);
+      const keywords = [name, short[id], a.label, a.verb, aliases[id], JOBS[id] ? 'jobs posts assign appoint' : '',title].filter(Boolean).join(' ');
+      return `<button class="order-link" data-open="${route(id)}" data-search="${esc(keywords)}">${esc(name)}${icon('chevron')}</button>`;
+    }).join('');
+    return `<section data-search-group><h3 class="index-label">${title}</h3><div class="order-links">${links}</div></section>`;
+  }).join('');
+  const reference = [
+    ['Treasury', 'group:trade', 'income money balance budget credit loans'],
+    ['Armies & campaigns', 'group:power', 'military soldiers troops active wars'],
+    ['Court offices & holdings', 'group:court', 'assigned jobs local operators'],
+    ['Chronicle', 'world:annals', 'world events log history'],
+    ['World standings', 'houses:world', 'ranking leaderboard find houses'],
+  ].map(([title,open,terms])=>`<button class="order-link" data-open="${open}" data-search="${title} ${terms}">${title}${icon('chevron')}</button>`).join('');
+  return `<div class="order-directory"><input class="target-filter" type="search" aria-label="Find an action" placeholder="Find an action…">${sections}<section data-search-group><h3 class="index-label">Overviews</h3><div class="order-links">${reference}</div></section><p class="no-match" hidden>No matching actions.</p></div>`;
+}
+
+const emptyText = {
+  purge:'A rival must have followers in a land you rule before you can drive it out.',
+  war:'You need a throne and a neighbouring land ruled by another house.',
+  grant:'Your lands have no vacant holdings to assign.', office:'You must rule your seat and share it with another house.',
+  ask:'No local house is available to ask for support.', repay:'You have no outstanding loans to repay.',
+  unpact:'You have no trade routes to close.', tutor:'There are no children in your household to tutor.',
+  heir:'There are no children in your household to name as heir.', stipend:'You have no relatives at court to pay.',
+  reinforce:'You need more than one active front.', assault:'You have no active wars.',
+  peace:'You have no offensive wars to call off.', yield:'No invading house can be paid to withdraw.', bomb:'You have no active wars.',
+};
+
+function choiceName(W,id,t) {
+  const a = ACTIONS[id];
+  if (a.kind === 'house') return 'House '+t.name;
+  if (a.kind === 'region') return REGIONS[t.i].name;
+  if (a.kind === 'kid') return t.n;
+  if (id === 'ask') return ASKS[t.what].name+' · House '+t.o.name;
+  if (id === 'office') return JOBS[t.k].name+' · House '+t.o.name;
+  if (id === 'grant') {
+    const recipient = !t.to ? 'Your steward' : t.to.head ? 'House '+t.to.name : t.to.n;
+    return HOLDINGS[t.r.vacant[t.n].k].name+' of '+REGIONS[t.r.i].name+' · '+recipient;
+  }
+  return a.name ? a.name(t) : a.label;
+}
+
+function choiceNote(W,h,id,t) {
+  const a=ACTIONS[id], note=a.note?.(W,h,t) || '';
+  if (id==='ask') {
+    const how=terms(W,h,t.o,t.what).how;
+    return how==='favour' ? 'Spends one favour they owe you.' : how==='owe' ? 'You will owe them a favour.' : '';
+  }
+  if (a.kind==='house') {
+    const match=id==='marry' && unwed(W,t)[0];
+    return [REGIONS[t.seat].name,match ? 'Match: '+match.n : '',note].filter(Boolean).join(' · ');
+  }
+  if (a.kind==='kid') return ['Age '+(W.year-t.b),t.t,'Ability '+t.a,t.job ? JOBS[t.job].name : '',note].filter(Boolean).join(' · ');
+  if (id==='office') return JOBS[t.k].short;
+  return note;
+}
+
+function marriageChild(W,h,kids) {
+  const options=kids.map(x=>`<option value="${h.kids.indexOf(x)}" data-person="${esc(x.n+'|'+x.b)}">${esc(x.n)} · age ${W.year-x.b}</option>`);
+  return `<label class="marriage-child">Your child<select class="marriage-choice">${options.join('')}</select></label>`;
+}
+
+function actionChoices(W,id,go,bulk) {
+  const h=house(W,W.player), a=ACTIONS[id], kids=id==='marry' ? unwed(W,h) : [];
+  if (id==='marry' && !kids.length) return `<p class="state">You need an unwed child aged ${CFG.adult} or older to arrange a marriage.</p><button data-open="group:family">View family</button>`;
+  const works=['farms','schools','roads'];
+  const buildTabs=works.includes(id) ? `<div class="work-switch">${works.map(k=>`<button data-open="action:${k}" aria-pressed="${k===id}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</div>` : '';
+  const description = id==='purge' ? 'Win a quarter of their followers. Their holdings fall vacant, your followers lose loyalty, and their in-laws hold a grievance. Defeat starts a civil war.' : a.hint;
+  const intro= (id==='marry' ? marriageChild(W,h,kids) : '') + buildTabs
+    + `<p class="order-hint">${esc(description)}</p>` + (a.bulk ? bulk(W,id) : '');
+  const targets=a.targets(W,h);
+  if (!targets.length) return intro+`<p class="state">${esc(emptyText[id] || (JOBS[id] ? 'You need an adult child or relative for this post.' : 'There are no eligible targets right now.'))}</p>`;
+  const candidates=targets.map(t=>({t,why:barred(W,h,id,t),rank:a.rank?.(W,h,t) || 0})).sort((a,b)=>b.rank-a.rank);
+  if (candidates[0].why && candidates.every(x=>x.why===candidates[0].why)) return intro+`<p class="state">${esc(candidates[0].why)}</p>`;
+  const ready=candidates.filter(x=>!x.why), waiting=candidates.filter(x=>x.why);
+  const row=({t,why})=>{
+    const name=choiceName(W,id,t), note=choiceNote(W,h,id,t);
+    const remove=JOBS[id] && t.job===id || id==='office' && h.given?.[t.k]===t.o.id;
+    const verb=remove ? 'Relieve' : id==='stipend' && t.paid ? 'Stop stipend' : a.verb;
+    return `<li class="action-row order-choice" data-search="${esc(name+' '+note)}"><span><b>${esc(name)}</b>${note ? `<small>${esc(note)}</small>` : ''}</span>${why ? `<small class="why">${esc(why)}</small>` : go(W,id,t,verb)}</li>`;
+  };
+  const list=(title,items)=>items.length ? `<section data-search-group><h3 class="index-label">${title} · ${items.length}</h3><ul>${items.map(row).join('')}</ul></section>` : '';
+  return intro+`<div class="order-options">${targets.length>8 ? '<input class="target-filter" type="search" aria-label="Find a target" placeholder="Find a name or land…">' : ''}
+    ${list('Available',ready)}${list('Unavailable',waiting)}<p class="no-match" hidden>No matching choices.</p></div>`;
+}
+
+return { actionName, actionShortcuts, actionDirectory, actionChoices };
+})();
 __m['js/ui/views.js'] = (() => {
 // Every screen as a function from world state to an HTML string. Nothing here changes the world.
 const { JOBS, HOLDINGS, WANTS, ASKS, WEALTH, PROJECTS, GUIDE, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
@@ -3690,6 +3859,7 @@ const { kind, spec, open: openProjects, swept, overseer, span } = __m['js/sim/se
 const { GOALS, goalLine } = __m['js/sim/goals.js'];
 const { esc, tint } = __m['js/ui/dom.js'];
 const { icon, crest, portrait, illustration } = __m['js/ui/art.js'];
+const { actionShortcuts, actionDirectory, actionChoices, actionName } = __m['js/ui/action-menu.js'];
 
 const GROUPS = { family: 'Family', goys: LABEL.folk, trade: 'Trade', power: 'Power', know: 'Scholars', court: 'Court', seat: 'Seat' };
 const TABS = UI.worldTabs;
@@ -3750,10 +3920,12 @@ function mine(W) {
       <button data-open="lands"><b>${people(followers(W, h))}</b><small>${LABEL.folk}</small></button>
       <button data-open="group:goys"><b>${loyalty(W, h)}%</b><small>Loyal</small></button>
       <button data-open="lands"><b>${h.thrones}</b><small>${h.thrones === 1 ? 'Throne' : 'Thrones'}</small></button>
-    </div></div>`;
+    </div></div>${actionShortcuts('map')}`;
 }
 
 function bar(open = '') {
+  const [kind,id] = open.split(':');
+  if (kind==='action') open=id==='ask' ? 'houses:mine' : 'group:'+ACTIONS[id].group;
   const tabs = [['Map',null],['Family','group:family'],['Houses','houses:mine'],['Lands','lands']];
   const active = open === 'group:family' || open.startsWith('person:') ? 1
     : /^(houses:|house:|group:(power|trade))/.test(open) ? 2
@@ -3767,9 +3939,9 @@ const targetId = (a, h, t) => (a.kind === 'house' ? t.id : a.kind === 'region' ?
 // A blocked button stays tappable so it can say why: the click handler shows data-why instead of acting.
 const off = why => (why ? ` class="off" aria-disabled="true" data-why="${esc(why)}"` : '');
 // One action button for one target, with its price, or greyed out with the reason.
-function go(W, id, t) {
+function go(W, id, t, verb = ACTIONS[id].verb ?? UI.choose) {
   const h = me(W), why = barred(W, h, id, t), c = cost(W, h, id, t);
-  return `<button data-act="${id}" data-t="${targetId(ACTIONS[id], h, t)}"${off(why)}>${ACTIONS[id].verb ?? UI.choose}${c ? `<em>${gold(c)} gold</em>` : ''}</button>`
+  return `<button data-act="${id}" data-t="${targetId(ACTIONS[id], h, t)}"${off(why)}>${esc(verb)}${c ? `<em>${gold(c)} gold</em>` : ''}</button>`
     + (why ? `<small class="why">${why}</small>` : '');
 }
 
@@ -3963,11 +4135,10 @@ function familyGroup(W, h) {
     <p>Under ${CFG.contest.safe * 100}%, the strongest voice against names a price when ${esc(h.head.n)} dies. Under ${CFG.contest.war * 100}%, refusing it means civil war. Visit a house to ask for its support, or give a relative what they want.</p>
     <ul class="allies notes">${rows(court, v => `<li><b>${v.o ? ref(v.o) : esc(v.name)}</b> <em class="side ${v.side > 0 ? 'for' : v.side < 0 ? 'against' : ''}">${v.side > 0 ? 'For' : v.side < 0 ? 'Against' : 'Undecided'}</em><small>Weight ${Math.round(v.w)}</small></li>`)}</ul></div></details>` : '';
   const split = risk.length ? `<details class="action-section" data-section="split"><summary><span>If ${esc(h.head.n)} died today</span><small>up to ${pct(risk[0].odds)} a land</small>${icon('chevron')}</summary><div class="action-body"><p>Lands away from your seat may break away under a cousin when a head dies. At most ${CFG.split.most} go at once. Loyal followers, an able heir and fewer far lands all lower the chance.</p><ul class="job-list">${rows(risk, x => `<li><b>${REGIONS[x.r.i].name}</b> ${pct(x.odds)} chance · ${Math.round(x.r.shares[h.id].loy)}% loyal</li>`)}</ul></div></details>` : '';
-  const marry = unwed(W, h).length ? actionSection(W,'marry') : state('lock', UI.alliances, UI.marriageHelp);
   const history = `<details class="action-section history" data-section="line"><summary>${icon('scroll')}<span>${UI.history}</span>${icon('chevron')}</summary><ol class="family-line">${rows([...W.chron].reverse(), p => `<li><b>${esc(p.n)}</b><span>${p.from} – ${p.to ?? W.year}</span><small>${p.t} · Ability ${p.a}</small></li>`)}</ol>${actionSection(W,'branch')}</details>`;
   return entry('house:'+h.id,h.head.n,'Head of house · '+h.head.t+' · Age '+(W.year-h.head.b),portrait(h)) + succession + stand + split + `<section class="children-section"><h3>${UI.children} <span class="count">${h.kids.length}</span></h3>${h.kids.length ? children(W, h) : `<div class="empty-state">${illustration('children')}<b>${UI.emptyChildren}</b><p>${UI.childrenHelp}</p></div>`}</section>
     ${h.kin.length ? `<section class="children-section"><h3>Relatives <span class="count">${h.kin.length}</span></h3>${relatives(W, h)}</section>` : ''}
-    ${allies.length ? `<section><h3>${UI.alliances} · ${allies.length}</h3><ul class="allies">${rows(allies, o => `<li>${ref(o, true)}<small>${Math.max(0, CFG.tieYears - (W.year - h.ties[o.id]))} years remaining</small></li>`)}</ul></section>` : ''}${marry}${history}`;
+    ${allies.length ? `<section><h3>${UI.alliances} · ${allies.length}</h3><ul class="allies">${rows(allies, o => `<li>${ref(o, true)}<small>${Math.max(0, CFG.tieYears - (W.year - h.ties[o.id]))} years remaining</small></li>`)}</ul></section>` : ''}${history}`;
 }
 
 function group(W, g) {
@@ -4156,6 +4327,7 @@ function housesIndex(W, world) {
   const row = ({o,rank,d}) => entry('house:'+o.id, o.name, world ? (o === h ? 'Your house · ' : '') + REGIONS[o.seat].name + ' · ' + soldiers(o) + ' soldiers' : d.summary, heraldry(o), !world && d?.alerts.length ? 'attention' : '', world ? rank : '');
   const groupRows = (name,list) => list.length ? labelLine(name) + rows(list,row) : '';
   return `<div class="directory-switch"><button data-open="houses:mine" aria-pressed="${!world}">My dealings <small>${mine.length}</small></button><button data-open="houses:world" aria-pressed="${world}">World ranking <small>${ranked.length}</small></button></div>`
+    + actionShortcuts('houses')
     + (world ? `<div class="search-directory"><input class="target-filter" type="search" aria-label="Find a house or land" placeholder="Find a house or land">${rows(entries,row)}<p class="no-match" hidden>No matching houses.</p></div>` :
       groupRows('Needs you',urgent) + groupRows(urgent.length ? 'Other dealings' : 'Your dealings',other) || '')
     + (!world && W.wars.some(w=>w.a===h.id || w.b===h.id) ? entry('group:power','Active campaigns','Soldiers, fronts and war costs',icon('power')) : '')
@@ -4168,7 +4340,7 @@ function order(W,h,id,t,label = ACTIONS[id].label) {
   if (id === 'ask' && !fee && !why) price = terms(W,h,t.o,t.what).how === 'favour' ? 'Uses a favour' : 'You owe a favour';
   const couple = id === 'marry' && !why ? `${unwed(W,h)[0].n} would marry ${unwed(W,t)[0].n} of House ${t.name}.` : '';
   const explanation = [couple,a.hint, a.note?.(W,h,t), why].filter(Boolean).map(v=>`<p>${esc(v)}</p>`).join('');
-  return fold('order-'+id+'-'+key,(id==='marry' ? artIcon(4) : '')+esc(label),esc(why ? 'Unavailable' : price),explanation + (!why ? go(W,id,t) : ''),'order');
+  return fold('order-'+id+'-'+key,(id==='marry' ? artIcon(4) : '')+esc(label),esc(why ? 'Unavailable' : price),explanation + (!why ? go(W,id,t) : ''),id==='purge' ? 'order danger' : 'order');
 }
 function houseDossier(W,h,o) {
   if (o === h) return (W.goal ? lineRow('Current goal',esc(goalLine(W))) : '') + family(W,o.id,false);
@@ -4190,13 +4362,14 @@ function houseDossier(W,h,o) {
     + deals('office',t=>(h.given?.[t.k]===o.id ? 'Relieve ' : 'Appoint ')+JOBS[t.k].name.toLowerCase());
   const fronts = rows(d.wars,w=>front(W,h,w));
   const military = rows(['war','coup','assault','reinforce','yield','peace','bomb'],id=>rows(targets(id).filter(r=>['war','coup'].includes(id) ? r.ruler === o.id : d.wars.some(w=>w.r === r.i)),r=>order(W,h,id,r,ACTIONS[id].verb+' · '+REGIONS[r.i].name)));
-  const hostile = ['slander','stir','press','purge'].map(id=>single(id)).join('') + military;
+  const driveOut = single('purge','Drive out this house');
+  const hostile = ['slander','stir','press'].map(id=>single(id)).join('') + military;
   const facts = d.facts.length ? d.facts.slice(0,3) : [['Seat',REGIONS[o.seat].name],['Opinion of you',liking(o,h)]];
   const distant = !ACTIONS.marry.targets(W,h).includes(o) && !d.involved;
   return (distant ? '<p class="state">This house is beyond your diplomatic reach.</p>' : '') + (d.alerts.length ? `<p class="dossier-alert">${esc(d.alerts.join(' · '))}</p>` : '') + fronts
     + `<div class="dossier-ledger">${rows(facts,([k,v])=>lineRow(artIcon(k.startsWith('Garrison') ? 0 : k === 'Heir pledge' ? 1 : k === 'Trade route' ? 2 : 3)+esc(k),esc(String(v))))}</div>`
     + single('repay','Repay loan') + primary + trade + (other ? fold('dealings','More dealings','Gifts, loans & offices',other) : '')
-    + (hostile ? fold('hostile','Hostile actions','View choices',hostile,'danger') : '')
+    + driveOut + (hostile ? fold('hostile','Plots & war','View choices',hostile,'danger') : '')
     + fold('terms','Relationship details','People & holdings',`<div class="dossier-ledger">${rows(d.facts,([k,v])=>lineRow(esc(k),esc(String(v))))}</div>`+family(W,o.id,false));
 }
 function landsIndex(W,h) {
@@ -4206,7 +4379,7 @@ function landsIndex(W,h) {
     const status = risk ? 'Risk of revolt' : vacant ? `${vacant} vacant holding${vacant===1?'':'s'}` : r.job ? `${PROJECTS[r.job.k].name} · finishes ${r.job.done}` : r.ruler===h.id ? 'You rule here' : `Ruled by House ${house(W,r.ruler).name}`;
     return entry('region:'+r.i, REGIONS[r.i].name, (r.i===h.seat ? 'Your seat · ' : '') + status + ' · ' + Math.round(r.shares[h.id].loy)+'% loyal', icon(r.i===h.seat ? 'crown' : 'map'),risk || vacant ? 'attention' : '');
   };
-  return entry('group:know','Scholars','Research and funding · '+realYear(Math.round(W.regions[h.seat].know)),icon('book'))
+  return actionShortcuts('lands') + entry('group:know','Scholars','Research and funding · '+realYear(Math.round(W.regions[h.seat].know)),icon('book'))
     + (mine.length ? labelLine('Ruled lands') + rows(mine,row) : '') + (other.length ? labelLine('Your following')+rows(other,row) : '')
     + labelLine('Across your lands') + entry('group:goys','Taxes & public works','Set taxes, hold a feast, or build across lands',icon('coin'))
     + entry('group:court','Court offices','See who serves and which posts are vacant',icon('seat'));
@@ -4217,7 +4390,11 @@ function sheet(W, open, picking, back = false) {
   let name, body, art='court', sub='', mark='';
   if (kind==='group') {
     name = ({trade:'Treasury',goys:'Taxes & public works',power:'Campaigns',court:'Court offices',seat:'Seat projects'})[arg] || GROUPS[arg];
-    art=({know:'scholar',trade:'market',goys:'land',seat:'land'})[arg] || 'court'; body=group(W,arg); sub=arg==='family' ? 'House '+esc(h.name) : REGIONS[h.seat].name;
+    art=({know:'scholar',trade:'market',goys:'land',seat:'land'})[arg] || 'court'; body=(arg==='family' ? actionShortcuts('family') : '')+group(W,arg); sub=arg==='family' ? 'House '+esc(h.name) : REGIONS[h.seat].name;
+  } else if (kind==='actions') {
+    name='All actions'; body=actionDirectory();
+  } else if (kind==='action') {
+    name=actionName(arg); body=arg==='tax' ? taxOptions(W) : actionChoices(W,arg,go,bulk);
   } else if (kind==='houses') {
     name='Houses'; sub=heirStatus(W,h); body=housesIndex(W,arg==='world');
   } else if (kind==='lands') {
@@ -4237,9 +4414,12 @@ function sheet(W, open, picking, back = false) {
   } else {
     name=arg==='annals' ? 'Chronicle' : arg==='ours' ? 'World history' : 'World standings'; sub='Year '+W.year; body=world(W,arg);
   }
-  const subpage = back || ['person','region','house','world','settings','todo'].includes(kind) || (kind==='group' && arg!=='family');
+  const subpage = back || ['person','region','house','world','settings','actions','action'].includes(kind) || (kind==='group' && arg!=='family');
   const backButton = subpage ? `<button class="return-link" data-go="${back?'back':'close'}">${icon('back')}${back ? 'Back' : 'Map'}</button>` : '';
-  return `<div class="body dynasty-page ${kind==='group' && arg==='know' ? 'scholars-page' : ''}" data-page="${open}">${backButton}<header class="dynasty-banner ${art}">${['land','market','scholar'].includes(art) ? illustration(({land:'court',market:'market',scholar:'research'})[art]) : ''}${mark}<div><h2 id="sheet-title">${name}</h2>${sub ? `<p>${sub}</p>` : ''}</div></header><div class="page-content">${body}</div></div>`;
+  const findActions = subpage && h && !picking && !W.over && kind!=='actions' && kind!=='houses' && kind!=='lands' && !(kind==='group' && arg==='family')
+    ? '<button class="find-orders" data-open="actions">All actions</button>' : '';
+  const pageNav = backButton ? `<div class="return-bar">${backButton}${findActions}</div>` : '';
+  return `<div class="body dynasty-page ${kind==='group' && arg==='know' ? 'scholars-page' : ''}" data-page="${open}">${pageNav}<header class="dynasty-banner ${art}">${['land','market','scholar'].includes(art) ? illustration(({land:'court',market:'market',scholar:'research'})[art]) : ''}${mark}<div><h2 id="sheet-title">${name}</h2>${sub ? `<p>${sub}</p>` : ''}</div></header><div class="page-content">${body}</div></div>`;
 }
 function housePreview(W, id) {
   const h = house(W, id);
@@ -4384,12 +4564,14 @@ function rememberPanel() {
   const body = $('sheet').querySelector('.body');
   if (!body) return;
   G.panels[body.dataset.page] = { scroll: body.scrollTop,
+    child: body.querySelector('.marriage-choice')?.selectedOptions[0]?.dataset.person,
     details: Object.fromEntries([...body.querySelectorAll('[data-section]')].map(el => [el.dataset.section, el.open])),
     filters: [...body.querySelectorAll('.target-filter')].map(el => el.value) };
 }
 function filterList(input) {
   const scope = input.closest('.action-body') || input.parentElement, query = input.value.trim().toLowerCase();
   scope.querySelectorAll('[data-search]').forEach(row => { row.hidden = !row.dataset.search.toLowerCase().includes(query); });
+  scope.querySelectorAll('[data-search-group]').forEach(group => { group.hidden = !group.querySelector('[data-search]:not([hidden])'); });
   const empty = scope.querySelector('.no-match');
   if (empty) empty.hidden = !!scope.querySelector('[data-search]:not([hidden])');
 }
@@ -4397,6 +4579,7 @@ function navigate(open, root = false) {
   rememberPanel();
   if (open !== G.open) {
     if (root) G.history = [];
+    else if (open==='actions' && G.history.includes(open)) G.history.splice(G.history.lastIndexOf(open));
     else if (G.open && !(G.open.startsWith('houses:') && open?.startsWith('houses:'))) G.history.push(G.open);
   }
   if (open && !G.open) G.ran = !G.paused;                  // a page stops time; closing it lets time run on if it was running
@@ -4435,6 +4618,8 @@ function render() {
     if (saved) {
       body.querySelectorAll('[data-section]').forEach(el => { if (el.dataset.section in saved.details) el.open = saved.details[el.dataset.section]; });
       body.querySelectorAll('.target-filter').forEach((el, i) => { el.value = saved.filters[i] || ''; filterList(el); });
+      const match = [...body.querySelectorAll('.marriage-choice option')].find(opt=>opt.dataset.person===saved.child);
+      if (match) match.selected=true;
       body.scrollTop = saved.scroll;
     }
   }
@@ -4508,7 +4693,10 @@ document.addEventListener('click', e => {
   rememberPanel(); G.said = ''; G.no = false; G.sure = '';
   if (el.dataset.why) { G.said = el.dataset.why; G.no = true; return render(); }   // a blocked button says why
   if (go) GO[go.split(':')[0]](go.split(':')[1]);
-  else if (id) act(id, t, sure, el.dataset.child);
+  else if (id) {
+    const child = el.dataset.child ?? (id === 'marry' ? el.closest('.page-content')?.querySelector('.marriage-choice')?.value : undefined);
+    act(id, t, sure, child);
+  }
   else navigate(open, el.dataset.root === 'true');
   music(G.muted);
   store.save();
