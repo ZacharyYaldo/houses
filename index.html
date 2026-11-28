@@ -585,6 +585,21 @@ summary small.bad { color:var(--bad); }
 #sheet .find-orders { min-height:44px; padding:0 15px; background:transparent; border:0; font-size:13px; font-weight:600; color:var(--gold); }
 .order-directory>.target-filter { position:sticky; top:0; z-index:1; background:#12232e; }
 .home-house>.sigil { display:block; flex:none; position:absolute; left:4%; top:50%; transform:translateY(-50%); width:clamp(42px,13vw,57px); height:auto; aspect-ratio:11/12; }
+
+/* Orders on a person's, a house's or a land's page: one row each, the button on the right (see order() in views.js) */
+.order-list { display:grid; gap:7px; min-width:0; }
+.order-list .action-row { border-radius:5px; background:#142731; padding:6px 8px 6px 10px; min-height:56px; }
+.order-list .action-row b { font:600 16px/1.2 Georgia,serif; }
+.order-list .action-row b[data-tip],.index-label [data-tip] { text-decoration:underline dotted #8d7f63; text-underline-offset:4px; }
+.order-list .action-row>span small { margin-top:3px; font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.order-list .action-row>span small.why { grid-column:auto; color:#e2a48f; }
+.order-list .action-row button[data-act] { min-width:84px; min-height:44px; padding:4px 8px; line-height:1.25; color:#f7e2b8; background:#253741; border-color:#766548; font-size:13px; }
+.order-list .action-row button em { line-height:1.25; }
+.order-list .action-row.blocked b { color:#aab3ba; }
+.order-list.danger .index-label { color:#f4b49e; }
+.order-list.danger .action-row { border-color:#5b4446; background:#231c22; }
+.order-list .posts button { min-height:44px; }
+.order-list .child.post { margin:0; }
 </style>
 </head>
 <body>
@@ -608,7 +623,7 @@ summary small.bad { color:var(--bad); }
 const __m = {};
 __m['js/config.js'] = (() => {
 // Every tunable number and every player-facing word lives here.
-const BUILD = 'Nov 27, 2026, 11:59 PM ET · 6551f26';   // the bundler replaces this with the build time and commit
+const BUILD = 'Nov 28, 2026, 12:14 AM ET · 1ead244';   // the bundler replaces this with the build time and commit
 const LABEL = { game: 'Houses', folk: 'Goys' };          // folk: the class beneath the bloodlines
 const START = 0;
 const END = 2027;
@@ -3843,7 +3858,7 @@ return { actionName, actionShortcuts, actionDirectory, actionChoices };
 })();
 __m['js/ui/views.js'] = (() => {
 // Every screen as a function from world state to an HTML string. Nothing here changes the world.
-const { JOBS, HOLDINGS, WANTS, ASKS, WEALTH, PROJECTS, GUIDE, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
+const { JOBS, HOLDINGS, WANTS, ASKS, WORKS, FEASTS, WEALTH, PROJECTS, GUIDE, BUILD, CFG, LABEL, TRAITS, TAXES, AIMS, RULES, TIPS, UNLOCKS, UI } = __m['js/config.js'];
 const { REGIONS } = __m['js/data/regions.js'];
 const { TECHS, NATURE } = __m['js/data/history.js'];
 const { sum, clamp, gold, people, pct, realYear } = __m['js/sim/util.js'];
@@ -4017,28 +4032,29 @@ function research(W, h) {
 // Every child in one card: who they are, where they stand in the succession, their job, and what can be done with them.
 function children(W, h) {
   const heir = heirOf(W, h);
-  const legend = `<p class="legend-note">One holder aged ${CFG.adult} or older per job, among your children, relatives and the houses of your seat. A job someone else holds shows their name; tap it twice to replace them. Tap a lit job to relieve its holder. Tutors teach ages ${CFG.tutor.from} to ${CFG.tutor.until - 1}.</p>`;
-  return rows(h.kids, k => personEntry(W,h,k,k === heir ? 'Heir' : 'Child')) + fold('jobs-help','Jobs & tutoring','',legend);
+  return rows(h.kids, k => personEntry(W,h,k,k === heir ? 'Heir' : 'Child'));
 }
 function personEntry(W,h,x,role) {
   return entry('person:'+household(h).indexOf(x),x.n,`${role} · Age ${W.year-x.b} · ${x.job ? JOBS[x.job].name : x.t}`, portrait({cul:h.cul,head:x}));
 }
-function personPage(W,h,x) {
-  const kid = h.kids.includes(x), heir = heirOf(W,h) === x;
-  const status = lineRow('Age',W.year-x.b) + lineRow('Trait',trait(x.t)) + lineRow('Ability',x.a+'/10') + lineRow('Office',x.job ? JOBS[x.job].name : 'Unassigned');
-  const spouse = x.m === undefined ? '' : lineRow('Married into',ref(house(W,x.m)));
-  const grants = ACTIONS.grant.targets(W,h).filter(t=>t.to===x).map(t=>order(W,h,'grant',t,`Run ${HOLDINGS[t.r.vacant[t.n].k].name.toLowerCase()} in ${REGIONS[t.r.i].name}`)).join('');
-  const marriage = kid && unwed(W,h).includes(x) ? marriageOffers(W,h,x) : '';
-  const kin = kid ? '' : lineRow('Disposition',temper(x)) + lineRow('Wants',WANTS[x.want].text) + (x.runs ? lineRow('Holding',HOLDINGS[x.runs.k].name+' · '+REGIONS[x.runs.r].name) : '');
-  return '<div class="dossier-ledger">'+status+spouse+kin+'</div>'
-    + (kid ? order(W,h,'tutor',x) + (x.heir ? '' : order(W,h,'heir',x,heir ? 'Confirm as heir' : 'Name heir')) : order(W,h,'stipend',x,x.paid ? 'Stop stipend' : 'Pay stipend'))
-    + marriage + fold('posts','Court office',x.job ? JOBS[x.job].name : 'Choose a post',posts(W,h,x))
-    + (grants ? fold('holdings','Grant a holding','Choose a land',grants) : '');
+function personPage(W, h, x) {
+  const kid = h.kids.includes(x), heir = heirOf(W, h) === x, of = (id, label, verb) => order(W, h, id, x, label, verb);
+  const status = lineRow('Age', W.year - x.b) + lineRow('Trait', trait(x.t)) + lineRow('Ability', tipped(TIPS.ability, `${x.a}/10`)) + lineRow('Job', x.job ? JOBS[x.job].name : 'None');
+  const spouse = x.m === undefined ? '' : lineRow('Married into', ref(house(W, x.m)));
+  const kin = kid ? '' : lineRow('Disposition', temper(x)) + lineRow('Wants', WANTS[x.want].text) + (x.runs ? lineRow('Runs', `${HOLDINGS[x.runs.k].name} · ${REGIONS[x.runs.r].name}`) : '');
+  const own = kid ? [of('tutor'), x.heir ? '' : of('heir', heir ? 'Confirm as heir' : 'Name heir', heir ? 'Confirm' : 'Name heir')] : [of('stipend', x.paid ? 'Stop the stipend' : 'Pay a stipend', x.paid ? 'Stop' : 'Pay')];
+  const grants = ACTIONS.grant.targets(W, h).filter(t => t.to === x).map(t => order(W, h, 'grant', t, `Run the ${HOLDINGS[t.r.vacant[t.n].k].name.toLowerCase()} of ${REGIONS[t.r.i].name}`));
+  const rules = `One holder aged ${CFG.adult} or older for each job, among your children, relatives and the houses of your seat. A job someone else holds shows their name: tap it twice to replace them. Tap a lit job to relieve its holder.`;
+  return `<div class="dossier-ledger">${status}${spouse}${kin}</div>` + orders('Orders', [...own, ...grants])
+    + `<section class="order-list">${labelLine(tipped(rules, 'Job at court'))}${posts(W, h, x)}</section>`
+    + (kid && unwed(W, h).includes(x) ? marriageOffers(W, h, x) : '');
 }
-function marriageOffers(W,h,x) {
-  const choices = ACTIONS.marry.targets(W,h).filter(o => !barred(W,h,'marry',o));
-  const items = rows(choices,o=>`<li class="action-row"><span>${ref(o)}<small>${esc(unwed(W,o)[0].n)} · ${esc(ACTIONS.marry.note(W,h,o))}</small></span><button data-act="marry" data-t="${o.id}" data-child="${h.kids.indexOf(x)}">Marry<em>${gold(cost(W,h,'marry',o))} gold</em></button></li>`);
-  return fold('matches','Arrange marriage',choices.length+' eligible',items ? '<ul>'+items+'</ul>' : '<p>No eligible match you can afford.</p>');
+// The houses a child could marry into, the first few in view and the rest one tap away.
+function marriageOffers(W, h, x) {
+  const choices = ACTIONS.marry.targets(W, h).filter(o => !barred(W, h, 'marry', o)), near = 4;
+  const row = o => `<div class="action-row order-choice"><span>${ref(o)}<small>${esc(unwed(W, o)[0].n)} · ${esc(ACTIONS.marry.note(W, h, o))}</small></span><button data-act="marry" data-t="${o.id}" data-child="${h.kids.indexOf(x)}">Marry<em>${gold(cost(W, h, 'marry', o))} gold</em></button></div>`;
+  return `<section class="order-list">${labelLine(tipped(ACTIONS.marry.hint, 'Arrange a marriage') + (choices.length ? ` · ${choices.length}` : ''))}${choices.length ? rows(choices.slice(0, near), row) : '<p class="order-hint">No match of age that you can afford.</p>'}`
+    + (choices.length > near ? fold('matches', `${choices.length - near} more matches`, '', rows(choices.slice(near), row)) : '') + '</section>';
 }
 // One button that turns something on or off for a child or relative: lit while on, greyed out with the reason when barred.
 const tap = (W, h, id, x, label, on) => `<button data-act="${id}" data-t="${household(h).indexOf(x)}"${on ? ' class="on"' : off(barred(W, h, id, x))}>${label}</button>`;
@@ -4116,7 +4132,11 @@ function court(W, h, oneLand) {
       ${r.own.length ? `<div class="child post"><b>Your steward</b>${rows(r.own, k => `<small class="doing">${HOLDINGS[k].name}: ${yours(boonText(k, CFG.court.steward))}</small>`)}</div>` : ''}
       ${others.length || r.own.length || r.vacant.length ? '' : '<p>No other house lives here, so nothing is run for you.</p>'}</div></details>`;
   };
-  if (oneLand) return land(oneLand);
+  if (oneLand) {                                           // on a land's own page: the warning and what stands empty, each with its takers
+    const r = oneLand, rising = shaky(W, r);
+    return (rising ? state('alert', 'This land may rise against you', `House ${esc(rising.name)} has the stronger following here (${pct(r.shares[rising.id].s)} to your ${pct(r.shares[h.id].s)}). Each year there is a ${Math.round(CFG.revolt * 100)}% chance it takes the throne. Its promise would hold it back.`, 'warning') : '')
+      + (r.vacant.length ? `<section class="order-list">${labelLine(tipped(ACTIONS.grant.hint, 'Empty holdings'))}${rows(r.vacant, (v, n) => empty(r, v, n))}</section>` : '');
+  }
   const served = holds(W, h).filter(r => r.ruler !== h.id);
   return `<p class="legend-note">A house works for you while it thinks better than −${-CFG.court.sour} of you, holds no grievance and is not at war with you. A working house also lends you ${CFG.court.muster * 100}% of its soldiers in that land. Gifts and marriages win houses over. A house you give a holding, a post or a feast owes you a favour, which you can spend when you ask it for something.</p>`
     + tally + seats + (lands.length ? rows(lands, land) : state('lock', 'You rule no land', 'Take a throne and the houses there will run it for you.'))
@@ -4127,7 +4147,7 @@ function court(W, h, oneLand) {
 function familyGroup(W, h) {
   const heir = heirOf(W, h), allies = alive(W).filter(o => o !== h && tied(W, h, o));
   const succession = heir ? state('family', `${UI.succession}: ${esc(heir.n)}`, `${trait(heir.t)} · Age ${W.year - heir.b} · Ability ${heir.a}/10`) :
-    `<div class="notice warning">${icon('alert')}<div><b>${UI.noHeir}</b><p>Succession is vulnerable.</p><details data-section="succession"><summary>How succession works →</summary><p>${UI.heirHelp}</p></details></div></div>`;
+    `<div class="notice warning">${icon('alert')}<div><b>${UI.noHeir}</b><p>${tipped(UI.heirHelp, 'Succession is vulnerable')}.</p></div></div>`;
   const risk = splitRisk(W, h);
   // Who stands where on the heir, heaviest voice first, for a house that rules its seat.
   const court = heir && W.regions[h.seat].ruler === h.id ? voices(W, h).sort((a, b) => b.w - a.w) : [], backed = support(court);
@@ -4190,10 +4210,12 @@ function region(W, i, picking) {
     </div></section>`;
   if (!picking && me(W)) {
     const localHouses = locals(W,r).sort((a,b)=>r.shares[b.id].s-r.shares[a.id].s);
+    const h = me(W), mine = r.ruler !== h.id ? [] : [...h.kin.filter(x => x.runs?.r === r.i).map(x => lineRow(esc(x.n), `Runs the ${HOLDINGS[x.runs.k].name.toLowerCase()}`)), ...r.own.map(k => lineRow('Your steward', `Runs the ${HOLDINGS[k].name.toLowerCase()}, half as well`))];   // what your own people run here
     const population = lineRow(LABEL.folk,people(r.pop)) + lineRow('Can read',pct(r.lit)) + lineRow('Knowledge',realYear(r.know)) + lineRow('Wealth per person',rich.toFixed(1)+'× world average');
-    const local = rows(localHouses,o=>entry('house:'+o.id,o.name,(o===lord?'Ruler · ':'')+pct(r.shares[o.id].s)+' of followers · '+Math.round(r.shares[o.id].loy)+'% loyal',heraldry(o)));
+    const local = rows(localHouses, o => { const runs = o !== lord && r.shares[o.id].runs?.length ? `Runs the ${running(r, o)}` : '', held = runs && r.ruler === me(W).id && balks(W, r, o);
+      return entry('house:' + o.id, o.name, (o === me(W) ? 'Your house · ' : '') + (o === lord ? 'Rules here · ' : '') + (runs ? runs + (held ? ', withheld · ' : ' · ') : '') + pct(r.shares[o.id].s) + ' of the people', heraldry(o), held ? 'attention' : ''); });
     return (war ? `<p class="dossier-alert">War in ${REGIONS[i].name} since ${war.from}.</p>` : '') + (r.plague ? `<p class="dossier-alert">${NATURE[r.plague.k].name} is here.</p>` : '')
-      + regionDecisions(W,r) + fold('residents','Local houses',localHouses.length+' houses',local)
+      + regionDecisions(W,r) + labelLine('Houses here') + local + (mine.length ? `<div class="dossier-ledger">${mine.join('')}</div>` : '')
       + fold('land-facts','Land details',people(r.pop)+' people','<div class="dossier-ledger">'+population+'</div>');
   }
   return boxes(
@@ -4209,17 +4231,14 @@ function region(W, i, picking) {
     + table(['House', LABEL.folk, 'Loyal', 'Tax', ...(picking ? [''] : [])], rows(locals(W, r).sort((a, b) => r.shares[b.id].s - r.shares[a.id].s), row))
     + (picking ? found : '');
 }
-function regionDecisions(W,r) {
-  const h=me(W), yours = r.ruler === h.id;
-  const decisions = (ids) => rows(ids,id=>ACTIONS[id].targets(W,h).includes(r) ? order(W,h,id,r) : '');
-  const military = decisions(['war','coup','branch','reinforce','assault','yield','peace','bomb']);
-  const works = ['farms','schools','roads'].map(id => ACTIONS[id].targets(W,h).includes(r) ? order(W,h,id,r,ACTIONS[id].label + ' · '+r.works[id]+'/'+workCap(r)) : '').join('');
-  return works
-    + (r.i===h.seat ? fold('seat','Seat projects',r.job ? 'Finishes '+r.job.done : 'Development',seat(W,h)) + actionSection(W,'feast') : '')
-    + (yours ? court(W,h,r) : '')
-    + (military ? fold('campaign','Campaigns & expansion','View choices',military,'danger') : '');
+function regionDecisions(W, r) {
+  const h = me(W), can = id => ACTIONS[id].targets(W, h).includes(r), all = ids => ids.filter(can).map(id => order(W, h, id, r));
+  const works = ['farms', 'schools', 'roads'].filter(can).map(id => order(W, h, id, r, `${WORKS[id][0]} · ${r.works[id]} of ${workCap(r)}`, 'Build', WORKS[id][1][0].toUpperCase() + WORKS[id][1].slice(1)));
+  const feasts = r.i === h.seat ? ACTIONS.feast.targets(W, h).filter(t => !t.o).map(t => order(W, h, 'feast', t, `A great feast ${FEASTS[t.p].toLowerCase()}`)) : [];
+  const project = r.i === h.seat && r.ruler === h.id ? fold('seat', 'Seat projects', r.job ? `${PROJECTS[r.job.k].name} · finished in ${r.job.done}` : openProjects(W, h).length ? `${openProjects(W, h).length} could begin` : 'Nothing to begin', seat(W, h)) : '';
+  return (r.ruler === h.id ? court(W, h, r) : '') + orders('Build', works) + project + orders('Feast', feasts)
+    + orders('Campaigns', [...all(['reinforce', 'assault', 'yield', 'peace', 'branch']), ...all(['war', 'coup', 'bomb'])], 'danger');
 }
-
 function family(W, id, showMoves = true) {
   const o = house(W, id), h = me(W), other = h && o !== h && !h.dead;
   if (o.dead) return `<p class="state">House ${esc(o.name)} came to an end in ${o.dead}.</p>`;
@@ -4334,13 +4353,27 @@ function housesIndex(W, world) {
     + (!world && !mine.length ? '<p class="state">Your house has no dealings yet. Open World ranking to find a partner.</p>' : '');
 }
 // The summary is a preview. Only the button inside it spends gold or commits an order.
-function order(W,h,id,t,label = ACTIONS[id].label) {
-  const a = ACTIONS[id], fee = cost(W,h,id,t), why = barred(W,h,id,t), key = targetId(a,h,t);
-  let price = fee ? gold(fee)+' gold' : '';
-  if (id === 'ask' && !fee && !why) price = terms(W,h,t.o,t.what).how === 'favour' ? 'Uses a favour' : 'You owe a favour';
-  const couple = id === 'marry' && !why ? `${unwed(W,h)[0].n} would marry ${unwed(W,t)[0].n} of House ${t.name}.` : '';
-  const explanation = [couple,a.hint, a.note?.(W,h,t), why].filter(Boolean).map(v=>`<p>${esc(v)}</p>`).join('');
-  return fold('order-'+id+'-'+key,(id==='marry' ? artIcon(4) : '')+esc(label),esc(why ? 'Unavailable' : price),explanation + (!why ? go(W,id,t) : ''),id==='purge' ? 'order danger' : 'order');
+// Orders sit on the page of the thing they act on. An ordinary one is a single row: its name (press it for what the
+// order does), a line on what it means here, and the button that does it. A blocked order is greyed and listed last;
+// the reason shows on the row when its first sentence fits one line (BRIEF), and in full at the foot of the screen when
+// the button is tapped. One that waits on a discovery is left out until then. A grave order (GRAVE) keeps a second
+// step that sets out what is at stake before it is confirmed. line: what the row says in place of the action's note.
+const GRAVE = ['purge', 'war', 'coup', 'bomb'], BRIEF = 40;
+function order(W, h, id, t, label = ACTIONS[id].label, verb = ACTIONS[id].verb, line) {
+  const a = ACTIONS[id], fee = cost(W, h, id, t), why = barred(W, h, id, t), note = a.note?.(W, h, t) ?? '', first = why.split('. ')[0];
+  if (why.startsWith('Needs the ')) return '';
+  if (GRAVE.includes(id)) return fold(`order-${id}-${targetId(a, h, t)}`, esc(label), esc(why ? 'Not now' : fee ? `${gold(fee)} gold` : 'See what is at stake'),
+    [a.hint, note, why].filter(Boolean).map(v => `<p>${esc(v)}</p>`).join('') + (why ? '' : go(W, id, t)), 'order danger');
+  const how = id === 'ask' && !fee && !why ? terms(W, h, t.o, t.what).how : '';
+  const price = how ? (how === 'favour' ? 'uses a favour' : 'you will owe one') : fee ? `${gold(fee)} gold` : '';
+  const here = why ? (first.length <= BRIEF ? first : '') : line ?? (id === 'marry' ? `${unwed(W, h)[0].n} would marry ${unwed(W, t)[0].n}. ${note}` : note);
+  return `<div class="action-row order-choice${why ? ' blocked' : ''}"><span><b data-tip="${esc([a.hint, note].filter(Boolean).join(' '))}">${esc(label)}</b>${here ? `<small${why ? ' class="why"' : ''}>${esc(here)}</small>` : ''}</span>`
+    + `<button data-act="${id}" data-t="${targetId(a, h, t)}"${off(why)}>${esc(verb)}${price && !why ? `<em>${price}</em>` : ''}</button></div>`;
+}
+// A headed list of orders, those that can be given now first. tip: what the heading explains when pressed.
+function orders(title, list, tone = '', tip = '') {
+  const blocked = x => x.includes('order-choice blocked'), shown = list.filter(Boolean).sort((a, b) => blocked(a) - blocked(b));
+  return shown.length ? `<section class="order-list ${tone}">${labelLine(tip ? tipped(tip, title) : title)}${shown.join('')}</section>` : '';
 }
 function houseDossier(W,h,o) {
   if (o === h) return (W.goal ? lineRow('Current goal',esc(goalLine(W))) : '') + family(W,o.id,false);
@@ -4349,27 +4382,23 @@ function houseDossier(W,h,o) {
   const targets = id => ACTIONS[id].targets(W,h);
   const single = (id,label) => targets(id).includes(o) ? order(W,h,id,o,label) : '';
   const deals = (id,name) => rows(targets(id).filter(t=>t.o === o || t.to === o),t=>order(W,h,id,t,name(t)));
-  const asks = rows(targets('ask').filter(t=>t.o===o),t=>{
-    const term=terms(W,h,o,t.what);
-    if (t.what==='amends' && term.why) return '';
-    const price=term.why || (term.how==='favour' ? 'Uses one favour' : term.how==='owe' ? 'You will owe one favour' : gold(cost(W,h,'ask',t))+' gold');
-    return `<div class="request-row"><span><b>${ASKS[t.what].name}</b><small>${esc(price)}</small></span>${term.why ? '' : go(W,'ask',t)}</div>`;
-  }), pledge = owes(W,o,h).length;
-  const trade = single('unpact','Manage trade route') || single('pact','Open trade route');
-  const primary = (asks ? fold('requests',artIcon(3)+(pledge ? 'Call in a favour' : 'Ask for support'),pledge ? `${pledge} owed` : 'See terms',asks,pledge ? 'highlight' : '') : '') + single('marry','Arrange marriage');
-  const holdings = deals('grant',t=>`Grant ${HOLDINGS[t.r.vacant[t.n].k].name.toLowerCase()} in ${REGIONS[t.r.i].name}`);
-  const other = single('gift') + single('borrow') + single('lend') + deals('feast',()=> 'Hold a feast in their honour') + holdings
-    + deals('office',t=>(h.given?.[t.k]===o.id ? 'Relieve ' : 'Appoint ')+JOBS[t.k].name.toLowerCase());
-  const fronts = rows(d.wars,w=>front(W,h,w));
-  const military = rows(['war','coup','assault','reinforce','yield','peace','bomb'],id=>rows(targets(id).filter(r=>['war','coup'].includes(id) ? r.ruler === o.id : d.wars.some(w=>w.r === r.i)),r=>order(W,h,id,r,ACTIONS[id].verb+' · '+REGIONS[r.i].name)));
-  const driveOut = single('purge','Drive out this house');
-  const hostile = ['slander','stir','press'].map(id=>single(id)).join('') + military;
+  const pledge = owes(W, o, h).length;
+  const asks = targets('ask').filter(t => t.o === o).map(t => (t.what === 'amends' && terms(W, h, o, t.what).why ? '' : order(W, h, 'ask', t, ASKS[t.what].name)));
+  const trade = single('unpact', 'Close the trade route') || single('pact', 'Open a trade route');
+  const holdings = targets('grant').filter(t => t.to === o).map(t => order(W, h, 'grant', t, `Give it the ${HOLDINGS[t.r.vacant[t.n].k].name.toLowerCase()} of ${REGIONS[t.r.i].name}`));
+  const honour = targets('feast').filter(t => t.o === o).map(t => order(W, h, 'feast', t, 'Hold a feast in its honour'));
+  const seats = targets('office').filter(t => t.o === o);   // only a house of the player's seat can hold a job at court
+  const jobs = seats.length ? `<section class="order-list">${labelLine(tipped(ACTIONS.office.hint, 'Job at court'))}<div class="child-acts posts">${rows(seats, t => `<button data-act="office" data-t="${t.k}.${o.id}"${h.given?.[t.k] === o.id ? ' class="on"' : off(barred(W, h, 'office', t))}>${JOBS[t.k].name}${heldBy(W, h, t.k, o)}</button>`)}</div></section>` : '';
+  const fronts = rows(d.wars, w => front(W, h, w));
+  const inWar = id => targets(id).filter(r => (['war', 'coup'].includes(id) ? r.ruler === o.id : d.wars.some(w => w.r === r.i))).map(r => order(W, h, id, r, `${ACTIONS[id].label} · ${REGIONS[r.i].name}`));
+  const dealt = orders(pledge ? `Dealings · it owes you ${pledge === 1 ? 'a favour' : `${pledge} favours`}` : 'Dealings', [single('repay'), ...asks, single('marry'), trade])
+    + orders('More dealings', [single('gift'), single('borrow'), single('lend'), ...honour, ...holdings]) + jobs;
+  const hostile = orders('Plots & war', [...['slander', 'stir', 'press'].map(id => single(id)), ...['reinforce', 'assault', 'yield', 'peace'].flatMap(inWar), single('purge', 'Drive out this house'), ...['war', 'coup', 'bomb'].flatMap(inWar)], 'danger');
   const facts = d.facts.length ? d.facts.slice(0,3) : [['Seat',REGIONS[o.seat].name],['Opinion of you',liking(o,h)]];
   const distant = !ACTIONS.marry.targets(W,h).includes(o) && !d.involved;
   return (distant ? '<p class="state">This house is beyond your diplomatic reach.</p>' : '') + (d.alerts.length ? `<p class="dossier-alert">${esc(d.alerts.join(' · '))}</p>` : '') + fronts
     + `<div class="dossier-ledger">${rows(facts,([k,v])=>lineRow(artIcon(k.startsWith('Garrison') ? 0 : k === 'Heir pledge' ? 1 : k === 'Trade route' ? 2 : 3)+esc(k),esc(String(v))))}</div>`
-    + single('repay','Repay loan') + primary + trade + (other ? fold('dealings','More dealings','Gifts, loans & offices',other) : '')
-    + driveOut + (hostile ? fold('hostile','Plots & war','View choices',hostile,'danger') : '')
+    + dealt + hostile
     + fold('terms','Relationship details','People & holdings',`<div class="dossier-ledger">${rows(d.facts,([k,v])=>lineRow(esc(k),esc(String(v))))}</div>`+family(W,o.id,false));
 }
 function landsIndex(W,h) {
